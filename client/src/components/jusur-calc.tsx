@@ -48,6 +48,7 @@ const defaultInputs = {
   agentCommPct: 0,
   agentCommAmount: 0,
   useAgentPct: true,
+  targetROI: 10,
 };
 
 function clamp(v: number, min: number, max: number): number { 
@@ -179,13 +180,43 @@ const parseNumberInput = (value: string): number => {
   return parseFloat(value.replace(/,/g, '')) || 0;
 };
 
+interface SavedDeal {
+  id: string;
+  date: string;
+  name: string;
+  model: string;
+  inputs: typeof defaultInputs;
+  results: ComputeResults;
+}
+
 export default function JusurCalcApp() {
   const [dark, setDark] = useDarkMode();
   const [model, setModel] = useState("SLIDING");
   const [chartType, setChartType] = useState("PIE");
   const [inputs, setInputs] = useState(defaultInputs);
   const [activeTab, setActiveTab] = useState("calculator");
+  const [dealName, setDealName] = useState("");
+  const [savedDeals, setSavedDeals] = useState<SavedDeal[]>([]);
+  const [sortField, setSortField] = useState<keyof SavedDeal>("date");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const { toast } = useToast();
+
+  // Load saved deals from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("jusur_saved_deals");
+    if (saved) {
+      try {
+        setSavedDeals(JSON.parse(saved));
+      } catch (error) {
+        console.error("Error loading saved deals:", error);
+      }
+    }
+  }, []);
+
+  // Save deals to localStorage whenever savedDeals changes
+  useEffect(() => {
+    localStorage.setItem("jusur_saved_deals", JSON.stringify(savedDeals));
+  }, [savedDeals]);
 
   const onChangeNum = (key: keyof typeof defaultInputs) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value;
@@ -213,6 +244,75 @@ export default function JusurCalcApp() {
       ...computeResults(modelType, inputs)
     }));
   }, [inputs]);
+
+  // Break-even analysis - calculate minimum sell price for target ROI
+  const breakEvenPrice = useMemo(() => {
+    const targetROI = inputs.targetROI / 100;
+    const buyCommAmount = (inputs.buyPrice || 0) * (inputs.buyCommPct || 0) / 100;
+    const costToBuy = (inputs.buyPrice || 0) + buyCommAmount;
+    const targetProfit = costToBuy * targetROI;
+    
+    // Calculate required net sale revenue
+    const requiredNetRevenue = costToBuy + targetProfit;
+    
+    // Account for sell commission and agent commission
+    const sellCommRate = (inputs.sellCommPct || 0) / 100;
+    const agentCommRate = inputs.useAgentPct ? (inputs.agentCommPct || 0) / 100 : 0;
+    const fixedAgentComm = inputs.useAgentPct ? 0 : (inputs.agentCommAmount || 0);
+    
+    // Solve for sell price: sellPrice * (1 - sellCommRate - agentCommRate) - fixedAgentComm = requiredNetRevenue
+    const breakEven = (requiredNetRevenue + fixedAgentComm) / (1 - sellCommRate - agentCommRate);
+    
+    return Math.max(0, breakEven);
+  }, [inputs]);
+
+  // Sensitivity analysis data
+  const sensitivityData = useMemo(() => {
+    if (results.totalProfit <= 0) return [];
+    
+    const baseProfit = results.totalProfit;
+    const baseSellPrice = inputs.sellPrice || 0;
+    const variations = [];
+    
+    // Generate data points from 50% to 150% of current profit
+    for (let i = 50; i <= 150; i += 10) {
+      const profitMultiplier = i / 100;
+      const adjustedProfit = baseProfit * profitMultiplier;
+      
+      // Calculate corresponding sell price
+      const buyCommAmount = (inputs.buyPrice || 0) * (inputs.buyCommPct || 0) / 100;
+      const costToBuy = (inputs.buyPrice || 0) + buyCommAmount;
+      const sellCommRate = (inputs.sellCommPct || 0) / 100;
+      const agentCommRate = inputs.useAgentPct ? (inputs.agentCommPct || 0) / 100 : 0;
+      const fixedAgentComm = inputs.useAgentPct ? 0 : (inputs.agentCommAmount || 0);
+      
+      const requiredNetRevenue = costToBuy + adjustedProfit;
+      const adjustedSellPrice = (requiredNetRevenue + fixedAgentComm) / (1 - sellCommRate - agentCommRate);
+      
+      // Calculate results for each model at this profit level
+      const testInputs = { ...inputs, sellPrice: adjustedSellPrice };
+      const slidingResults = computeResults("SLIDING", testInputs);
+      const progressiveResults = computeResults("PROGRESSIVE", testInputs);
+      const flatResults = computeResults("FLAT", testInputs);
+      const roiResults = computeResults("ROI", testInputs);
+      
+      variations.push({
+        profitMultiplier: i,
+        sellPrice: adjustedSellPrice,
+        totalProfit: adjustedProfit,
+        slidingJusur: slidingResults.jusurProfitCut,
+        slidingInvestor: slidingResults.investorProfit,
+        progressiveJusur: progressiveResults.jusurProfitCut,
+        progressiveInvestor: progressiveResults.investorProfit,
+        flatJusur: flatResults.jusurProfitCut,
+        flatInvestor: flatResults.investorProfit,
+        roiJusur: roiResults.jusurProfitCut,
+        roiInvestor: roiResults.investorProfit,
+      });
+    }
+    
+    return variations;
+  }, [inputs, results]);
 
   const exportCSV = () => {
     const rows = [
@@ -274,6 +374,80 @@ export default function JusurCalcApp() {
     }
   };
 
+  const saveDeal = () => {
+    if (!dealName.trim()) {
+      toast({
+        title: "Deal Name Required",
+        description: "Please enter a name for this deal.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newDeal: SavedDeal = {
+      id: Date.now().toString(),
+      date: new Date().toISOString(),
+      name: dealName.trim(),
+      model,
+      inputs: { ...inputs },
+      results: { ...results },
+    };
+
+    setSavedDeals(prev => [newDeal, ...prev]);
+    setDealName("");
+    toast({
+      title: "Deal Saved",
+      description: `"${newDeal.name}" has been saved to your history.`,
+    });
+  };
+
+  const loadDeal = (deal: SavedDeal) => {
+    setInputs(deal.inputs);
+    setModel(deal.model);
+    setActiveTab("calculator");
+    toast({
+      title: "Deal Loaded",
+      description: `"${deal.name}" has been loaded.`,
+    });
+  };
+
+  const deleteDeal = (id: string) => {
+    setSavedDeals(prev => prev.filter(deal => deal.id !== id));
+    toast({
+      title: "Deal Deleted",
+      description: "Deal has been removed from history.",
+    });
+  };
+
+  const sortDeals = (field: keyof SavedDeal) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("desc");
+    }
+  };
+
+  const sortedDeals = useMemo(() => {
+    return [...savedDeals].sort((a, b) => {
+      let aVal = a[sortField];
+      let bVal = b[sortField];
+      
+      if (sortField === "results") {
+        aVal = a.results.totalProfit;
+        bVal = b.results.totalProfit;
+      }
+      
+      if (typeof aVal === "string" && typeof bVal === "string") {
+        return sortDirection === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      }
+      
+      const numA = Number(aVal) || 0;
+      const numB = Number(bVal) || 0;
+      return sortDirection === "asc" ? numA - numB : numB - numA;
+    });
+  }, [savedDeals, sortField, sortDirection]);
+
   const pieData = useMemo(() => ([
     { name: "Investor Profit", value: Math.max(0, results.investorProfit) },
     { name: "Jusur Profit Cut", value: Math.max(0, results.jusurProfitCut) },
@@ -316,10 +490,12 @@ export default function JusurCalcApp() {
       color: "from-ios-orange to-yellow-400",
     },
     {
-      title: "Your Share",
-      value: nf(results.yourShare),
-      icon: Share,
+      title: "Break-even Price",
+      value: nf(breakEvenPrice),
+      icon: TrendingUp,
       color: "from-purple-500 to-purple-400",
+      change: `For ${inputs.targetROI}% ROI`,
+      changeType: "neutral" as const,
     },
   ];
 
@@ -396,9 +572,11 @@ export default function JusurCalcApp() {
         {/* Tab Navigation */}
         <div className="mb-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="glassmorphism bg-white/80 dark:bg-ios-dark-elevated/80 rounded-ios-xl border border-white/20 dark:border-white/10">
+            <TabsList className="glassmorphism bg-white/80 dark:bg-ios-dark-elevated/80 rounded-ios-xl border border-white/20 dark:border-white/10 grid grid-cols-2 md:grid-cols-4 w-full">
               <TabsTrigger value="calculator" className="rounded-lg">Calculator</TabsTrigger>
-              <TabsTrigger value="scenarios" className="rounded-lg">Scenario Comparison</TabsTrigger>
+              <TabsTrigger value="scenarios" className="rounded-lg">Scenarios</TabsTrigger>
+              <TabsTrigger value="sensitivity" className="rounded-lg">Sensitivity</TabsTrigger>
+              <TabsTrigger value="history" className="rounded-lg">History</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -514,20 +692,42 @@ export default function JusurCalcApp() {
                   </div>
                 </div>
 
-                <div>
-                  <Label className="text-gray-700 dark:text-gray-300 mb-2">
-                    Holding Period
-                    <span className="text-ios-gray text-xs ml-1">(months)</span>
-                  </Label>
-                  <Input 
-                    type="number" 
-                    className="ios-input" 
-                    value={inputs.holdingMonths || ''} 
-                    onChange={onChangeNum("holdingMonths")}
-                    placeholder="0"
-                    data-testid="input-holdingperiod"
-                  />
-                  <p className="text-xs text-ios-gray dark:text-gray-400 mt-1">Used for ROI calculations and model thresholds</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-gray-700 dark:text-gray-300 mb-2">
+                      Holding Period
+                      <span className="text-ios-gray text-xs ml-1">(months)</span>
+                    </Label>
+                    <Input 
+                      type="number" 
+                      className="ios-input" 
+                      value={inputs.holdingMonths || ''} 
+                      onChange={onChangeNum("holdingMonths")}
+                      placeholder="0"
+                      data-testid="input-holdingperiod"
+                    />
+                    <p className="text-xs text-ios-gray dark:text-gray-400 mt-1">Used for ROI calculations</p>
+                  </div>
+
+                  <div>
+                    <Label className="text-gray-700 dark:text-gray-300 mb-2">
+                      Target ROI
+                      <span className="text-ios-gray text-xs ml-1">(%)</span>
+                    </Label>
+                    <div className="relative">
+                      <Input 
+                        type="number" 
+                        step="0.5" 
+                        className="ios-input pr-8" 
+                        value={inputs.targetROI || ''} 
+                        onChange={onChangeNum("targetROI")}
+                        placeholder="10"
+                        data-testid="input-targetroi"
+                      />
+                      <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">%</span>
+                    </div>
+                    <p className="text-xs text-ios-gray dark:text-gray-400 mt-1">For break-even analysis</p>
+                  </div>
                 </div>
 
                 {/* Agent Commission Section */}
@@ -658,6 +858,29 @@ export default function JusurCalcApp() {
                     </div>
                   </div>
                 )}
+
+                {/* Save Deal Section */}
+                <div className="space-y-4 p-4 rounded-lg bg-gradient-to-r from-ios-blue/10 to-ios-light-blue/10 border border-ios-blue/20">
+                  <Label className="text-gray-700 dark:text-gray-300">Save This Deal</Label>
+                  <div className="flex space-x-2">
+                    <Input 
+                      type="text" 
+                      className="ios-input flex-1" 
+                      value={dealName} 
+                      onChange={(e) => setDealName(e.target.value)}
+                      placeholder="Enter deal name..."
+                      data-testid="input-dealname"
+                    />
+                    <Button 
+                      onClick={saveDeal}
+                      className="ios-button bg-ios-blue hover:bg-ios-blue/90 text-white"
+                      disabled={!dealName.trim()}
+                    >
+                      Save Deal
+                    </Button>
+                  </div>
+                  <p className="text-xs text-ios-gray dark:text-gray-400">Save your calculations for future reference and comparison</p>
+                </div>
               </CardContent>
             </Card>
           </motion.div>
@@ -901,6 +1124,243 @@ export default function JusurCalcApp() {
                   </Card>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+        )}
+
+        {activeTab === "sensitivity" && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          className="space-y-6"
+        >
+          <Card className="glassmorphism bg-white/80 dark:bg-ios-dark-elevated/80 rounded-ios-xl border border-white/20 dark:border-white/10 shadow-ios">
+            <CardHeader>
+              <CardTitle className="text-gray-900 dark:text-white">Sensitivity Analysis</CardTitle>
+              <p className="text-sm text-ios-gray dark:text-gray-400">How profit distributions change with different sale prices and profit levels</p>
+            </CardHeader>
+            <CardContent>
+              {sensitivityData.length > 0 ? (
+                <div className="space-y-6">
+                  {/* Jusur Profit Sensitivity */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Jusur Profit by Model</h3>
+                    <div className="h-80 w-full bg-white dark:bg-gray-900 rounded-lg p-2">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={sensitivityData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                          <XAxis 
+                            dataKey="profitMultiplier" 
+                            tick={{ fontSize: 12, fill: '#6b7280' }}
+                            axisLine={{ stroke: '#d1d5db' }}
+                            label={{ value: 'Profit Level (%)', position: 'insideBottom', offset: -5 }}
+                          />
+                          <YAxis 
+                            tickFormatter={(value) => nf(value)}
+                            tick={{ fontSize: 12, fill: '#6b7280' }}
+                            axisLine={{ stroke: '#d1d5db' }}
+                            label={{ value: 'Jusur Profit', angle: -90, position: 'insideLeft' }}
+                          />
+                          <ReTooltip 
+                            formatter={(value) => nf(value as number)}
+                            labelFormatter={(label) => `${label}% of Current Profit`}
+                            contentStyle={{
+                              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '8px'
+                            }}
+                          />
+                          <Legend />
+                          <Line type="monotone" dataKey="slidingJusur" stroke={COLORS[0]} strokeWidth={3} name="Sliding Scale" />
+                          <Line type="monotone" dataKey="progressiveJusur" stroke={COLORS[1]} strokeWidth={3} name="Progressive" />
+                          <Line type="monotone" dataKey="flatJusur" stroke={COLORS[2]} strokeWidth={3} name="Flat Rate" />
+                          <Line type="monotone" dataKey="roiJusur" stroke={COLORS[3]} strokeWidth={3} name="ROI-Based" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Investor Profit Sensitivity */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Investor Profit by Model</h3>
+                    <div className="h-80 w-full bg-white dark:bg-gray-900 rounded-lg p-2">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={sensitivityData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                          <XAxis 
+                            dataKey="profitMultiplier" 
+                            tick={{ fontSize: 12, fill: '#6b7280' }}
+                            axisLine={{ stroke: '#d1d5db' }}
+                            label={{ value: 'Profit Level (%)', position: 'insideBottom', offset: -5 }}
+                          />
+                          <YAxis 
+                            tickFormatter={(value) => nf(value)}
+                            tick={{ fontSize: 12, fill: '#6b7280' }}
+                            axisLine={{ stroke: '#d1d5db' }}
+                            label={{ value: 'Investor Profit', angle: -90, position: 'insideLeft' }}
+                          />
+                          <ReTooltip 
+                            formatter={(value) => nf(value as number)}
+                            labelFormatter={(label) => `${label}% of Current Profit`}
+                            contentStyle={{
+                              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '8px'
+                            }}
+                          />
+                          <Legend />
+                          <Line type="monotone" dataKey="slidingInvestor" stroke={COLORS[0]} strokeWidth={3} name="Sliding Scale" />
+                          <Line type="monotone" dataKey="progressiveInvestor" stroke={COLORS[1]} strokeWidth={3} name="Progressive" />
+                          <Line type="monotone" dataKey="flatInvestor" stroke={COLORS[2]} strokeWidth={3} name="Flat Rate" />
+                          <Line type="monotone" dataKey="roiInvestor" stroke={COLORS[3]} strokeWidth={3} name="ROI-Based" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-gray-500 dark:text-gray-400">Enter investment details to see sensitivity analysis</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+        )}
+
+        {activeTab === "history" && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          className="space-y-6"
+        >
+          <Card className="glassmorphism bg-white/80 dark:bg-ios-dark-elevated/80 rounded-ios-xl border border-white/20 dark:border-white/10 shadow-ios">
+            <CardHeader>
+              <CardTitle className="text-gray-900 dark:text-white flex items-center justify-between">
+                Investment History
+                <span className="text-sm text-ios-gray dark:text-gray-400 font-normal">
+                  {savedDeals.length} deal{savedDeals.length !== 1 ? 's' : ''} saved
+                </span>
+              </CardTitle>
+              <p className="text-sm text-ios-gray dark:text-gray-400">Your saved calculations and deals</p>
+            </CardHeader>
+            <CardContent>
+              {savedDeals.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700">
+                        <th 
+                          className="text-left py-3 px-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded"
+                          onClick={() => sortDeals("date")}
+                        >
+                          <div className="flex items-center space-x-1">
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Date</span>
+                            {sortField === "date" && (
+                              <span className="text-ios-blue">{sortDirection === "asc" ? "↑" : "↓"}</span>
+                            )}
+                          </div>
+                        </th>
+                        <th 
+                          className="text-left py-3 px-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded"
+                          onClick={() => sortDeals("name")}
+                        >
+                          <div className="flex items-center space-x-1">
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Name</span>
+                            {sortField === "name" && (
+                              <span className="text-ios-blue">{sortDirection === "asc" ? "↑" : "↓"}</span>
+                            )}
+                          </div>
+                        </th>
+                        <th className="text-left py-3 px-2">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Model</span>
+                        </th>
+                        <th className="text-left py-3 px-2">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Buy Price</span>
+                        </th>
+                        <th className="text-left py-3 px-2">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Sell Price</span>
+                        </th>
+                        <th 
+                          className="text-left py-3 px-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded"
+                          onClick={() => sortDeals("results")}
+                        >
+                          <div className="flex items-center space-x-1">
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Total Profit</span>
+                            {sortField === "results" && (
+                              <span className="text-ios-blue">{sortDirection === "asc" ? "↑" : "↓"}</span>
+                            )}
+                          </div>
+                        </th>
+                        <th className="text-left py-3 px-2">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">ROI</span>
+                        </th>
+                        <th className="text-left py-3 px-2">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Actions</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedDeals.map((deal) => (
+                        <tr key={deal.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                          <td className="py-3 px-2 text-sm text-gray-600 dark:text-gray-400">
+                            {new Date(deal.date).toLocaleDateString()}
+                          </td>
+                          <td className="py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">
+                            {deal.name}
+                          </td>
+                          <td className="py-3 px-2">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-ios-blue/10 text-ios-blue">
+                              {deal.model}
+                            </span>
+                          </td>
+                          <td className="py-3 px-2 text-sm text-gray-600 dark:text-gray-400">
+                            {nf(deal.inputs.buyPrice)}
+                          </td>
+                          <td className="py-3 px-2 text-sm text-gray-600 dark:text-gray-400">
+                            {nf(deal.inputs.sellPrice)}
+                          </td>
+                          <td className="py-3 px-2 text-sm font-medium text-ios-green">
+                            {nf(deal.results.totalProfit)}
+                          </td>
+                          <td className="py-3 px-2 text-sm text-gray-600 dark:text-gray-400">
+                            {deal.results.investorROI.toFixed(2)}%
+                          </td>
+                          <td className="py-3 px-2">
+                            <div className="flex space-x-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => loadDeal(deal)}
+                                className="text-xs"
+                              >
+                                Load
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => deleteDeal(deal.id)}
+                                className="text-xs text-red-600 hover:text-red-700"
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Calculator className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500 dark:text-gray-400 mb-2">No saved deals yet</p>
+                  <p className="text-sm text-ios-gray dark:text-gray-400">
+                    Save your calculations in the Calculator tab to track your investment history.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
