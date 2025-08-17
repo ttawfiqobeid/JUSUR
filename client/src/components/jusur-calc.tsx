@@ -360,40 +360,131 @@ export default function JusurCalcApp() {
   }, [inputs, results]);
 
   const exportCSV = () => {
+    const formatCurrency = (amount: number) => {
+      return `"EGP ${amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}"`;
+    };
+
+    const formatPercentage = (pct: number) => {
+      return `"${pct.toFixed(2)}%"`;
+    };
+
+    const dealName = dealName || `${model}_Deal_${new Date().toISOString().split('T')[0]}`;
+    
     const rows = [
-      ["Metric", "Value"],
-      ["Model", model],
-      ["Buy Price", results.buyPrice.toString()],
-      ["Buy Commission (%)", results.buyCommPct.toString()],
-      ["Buy Commission Amount", results.buyCommAmount.toString()],
-      ["Cost to Buy", results.costToBuy.toString()],
-      ["Sell Price", results.sellPrice.toString()],
-      ["Sell Commission (%)", results.sellCommPct.toString()],
-      ["Sell Commission Amount", results.sellCommAmount.toString()],
-      ["RET Tax Amount", results.retTaxAmount.toString()],
-      ["Other Expenses", results.otherExpenses.toString()],
-      ["Net Sale Revenue", results.netSaleRevenue.toString()],
-      ["Total Profit", results.totalProfit.toString()],
-      ["Jusur %", results.jusurPct.toString()],
-      ["Jusur Profit Cut", results.jusurProfitCut.toString()],
-      ["Investor Profit", results.investorProfit.toString()],
-      ["Investor ROI %", results.investorROI.toString()],
-      ["Jusur Total Revenue", results.jusurTotalRevenue.toString()],
-      ["Your Share (50%)", results.yourShare.toString()],
-      ["Partner Share (50%)", results.partnerShare.toString()],
+      // Header Information
+      ["JUSUR INVESTMENTS - CALCULATION REPORT"],
+      [""],
+      ["Deal Name", `"${dealName}"`],
+      ["Calculation Model", `"${model}"`],
+      ["Export Date", `"${new Date().toLocaleString()}"`],
+      [""],
+      
+      // INPUT PARAMETERS
+      ["=== INPUT PARAMETERS ==="],
+      ["Purchase Price", formatCurrency(results.buyPrice)],
+      ["Expected Sale Price", formatCurrency(results.sellPrice)],
+      ["Holding Period (Months)", inputs.holdingMonths.toString()],
+      [""],
+      
+      // COMMISSION & FEES
+      ["=== COMMISSIONS & FEES ==="],
+      ["Buy Commission Rate", formatPercentage(results.buyCommPct)],
+      ["Buy Commission Amount", formatCurrency(results.buyCommAmount)],
+      ["Sell Commission Rate", formatPercentage(results.sellCommPct)],
+      ["Sell Commission Amount", formatCurrency(results.sellCommAmount)],
+      [""],
+      
+      // OPTIONAL COSTS
+      ["=== OPTIONAL COSTS ==="],
+      ["Agent Commission", inputs.useAgentPct ? formatPercentage(inputs.agentCommPct) : formatCurrency(inputs.agentCommAmount)],
+      ["Agent Commission Amount", formatCurrency(results.agentCommAmount)],
+      ["RET Tax Rate", inputs.useRetTax ? formatPercentage(inputs.retTaxPct) : "Not Applied"],
+      ["RET Tax Amount", formatCurrency(results.retTaxAmount)],
+      ["Other Expenses", formatCurrency(results.otherExpenses)],
+      [""],
+      
+      // CALCULATION RESULTS
+      ["=== CALCULATION RESULTS ==="],
+      ["Total Cost to Buy", formatCurrency(results.costToBuy)],
+      ["Gross Sale Revenue", formatCurrency(results.sellPrice)],
+      ["Total Selling Costs", formatCurrency(results.sellCommAmount + results.agentCommAmount + results.retTaxAmount + results.otherExpenses)],
+      ["Net Sale Revenue", formatCurrency(results.netSaleRevenue)],
+      ["Total Profit", formatCurrency(results.totalProfit)],
+      [""],
+      
+      // PROFIT DISTRIBUTION
+      ["=== PROFIT DISTRIBUTION ==="],
+      ["Jusur Profit Share Rate", formatPercentage(results.jusurPct * 100)],
+      ["Jusur Profit Cut", formatCurrency(results.jusurProfitCut)],
+      ["Investor Profit", formatCurrency(results.investorProfit)],
+      ["Investor Profit Percentage", formatPercentage(results.investorProfitPercent)],
+      [""],
+      
+      // JUSUR REVENUE BREAKDOWN
+      ["=== JUSUR REVENUE BREAKDOWN ==="],
+      ["Total Jusur Revenue", formatCurrency(results.jusurTotalRevenue)],
+      ["Your Share (50%)", formatCurrency(results.yourShare)],
+      ["Partner Share (50%)", formatCurrency(results.partnerShare)],
+      [""],
+      
+      // INVESTOR RETURNS
+      ["=== INVESTOR RETURNS ==="],
+      ["Initial Investment", formatCurrency(results.costToBuy)],
+      ["Final Return", formatCurrency(results.investorFinalReturn)],
+      ["Investor ROI", formatPercentage(results.investorROI)],
+      [""],
+      
+      // BREAK-EVEN ANALYSIS
+      ["=== BREAK-EVEN ANALYSIS ==="],
+      ["Target ROI", formatPercentage(inputs.targetROI)],
+      ["Minimum Sell Price for Target ROI", formatCurrency(breakEvenPrice)],
+      ["Current vs Break-even", formatCurrency(results.sellPrice - breakEvenPrice)],
+      [""],
+      
+      // MODEL-SPECIFIC PARAMETERS
+      ["=== MODEL-SPECIFIC PARAMETERS ==="],
     ];
+
+    // Add model-specific parameters
+    if (model === "FLAT") {
+      rows.push(["Flat Jusur Percentage", formatPercentage(inputs.flatPct)]);
+    } else if (model === "ROI") {
+      rows.push(
+        ["ROI Tier 1 Threshold", formatPercentage(inputs.roiTier1)],
+        ["ROI Tier 2 Threshold", formatPercentage(inputs.roiTier2)],
+        ["Jusur % for ROI ≤ Tier 1", formatPercentage(inputs.roiPct1)],
+        ["Jusur % for Tier 1 < ROI ≤ Tier 2", formatPercentage(inputs.roiPct2)],
+        ["Jusur % for ROI > Tier 2", formatPercentage(inputs.roiPct3)]
+      );
+    } else if (model === "SLIDING") {
+      rows.push(["Model Description", '"20% base + (profit/2M)*25%, capped at 45%"']);
+    } else if (model === "PROGRESSIVE") {
+      rows.push(["Model Description", '"25% up to 500K, 35% next 500K, 45% remainder"']);
+    }
+
+    rows.push(
+      [""],
+      ["=== SUMMARY ==="],
+      ["Total Investment Required", formatCurrency(results.costToBuy)],
+      ["Expected Total Return", formatCurrency(results.investorFinalReturn)],
+      ["Expected Profit", formatCurrency(results.investorProfit)],
+      ["Expected ROI", formatPercentage(results.investorROI)],
+      [""],
+      ["Generated by Jusur Calc", `"${window.location.href}"`]
+    );
+
     const csv = rows.map(r => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `JusurCalc_${model}.csv`;
+    a.download = `JusurCalc_${model}_${dealName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
 
     toast({
       title: "Export Complete",
-      description: "CSV file has been downloaded successfully.",
+      description: "Comprehensive CSV report has been downloaded successfully.",
     });
   };
 
