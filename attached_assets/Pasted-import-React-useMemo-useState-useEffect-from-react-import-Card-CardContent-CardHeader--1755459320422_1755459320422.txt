@@ -1,0 +1,364 @@
+import React, { useMemo, useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { PieChart, Pie, Cell, Tooltip as ReTooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import { Download, RefreshCcw, Calculator, TrendingUp, Moon, Sun } from "lucide-react";
+import { motion } from "framer-motion";
+
+/**
+ * Jusur Calc — Full-Feature Polished App
+ *
+ * Features
+ * - Multiple split logics: Sliding (continuous), Progressive (tax-style tiers), Flat %, ROI-based
+ * - Commissions on buy/sell
+ * - Holding period (months) for ROI-based threshold (optional input)
+ * - Clean KPIs + charts (Pie/Bar)
+ * - Dark mode toggle (per-session)
+ * - Quick export CSV
+ * - EGP currency formatting
+ */
+
+const formatter = new Intl.NumberFormat("en-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 2 });
+const nf = (n) => (isFinite(n) ? formatter.format(n || 0) : "—");
+
+const COLORS = ["#4f46e5", "#6366f1", "#a78bfa", "#22c55e", "#f59e0b"]; // kept simple
+
+const defaultInputs = {
+  buyPrice: 5600000,
+  sellPrice: 7200000,
+  buyCommPct: 1.0,
+  sellCommPct: 1.5,
+  holdingMonths: 8,
+  flatPct: 30, // used in Flat model
+  roiTier1: 10, // ROI-based thresholds
+  roiTier2: 20,
+  roiPct1: 20, // Jusur % when ROI <= tier1
+  roiPct2: 30, // Jusur % when tier1 < ROI <= tier2
+  roiPct3: 40, // Jusur % when ROI > tier2
+};
+
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+function useDarkMode() {
+  const [dark, setDark] = useState(() => {
+    const saved = typeof window !== "undefined" ? window.localStorage.getItem("jusur_dark") : null;
+    return saved === "1";
+  });
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.classList.toggle("dark", dark);
+      window.localStorage.setItem("jusur_dark", dark ? "1" : "0");
+    }
+  }, [dark]);
+  return [dark, setDark];
+}
+
+export default function JusurCalcApp() {
+  const [dark, setDark] = useDarkMode();
+  const [model, setModel] = useState("SLIDING");
+  const [chartType, setChartType] = useState("PIE");
+  const [inputs, setInputs] = useState(defaultInputs);
+
+  const onChangeNum = (key) => (e) => setInputs((s) => ({ ...s, [key]: parseFloat(e.target.value || 0) }));
+
+  const results = useMemo(() => computeResults(model, inputs), [model, inputs]);
+
+  const exportCSV = () => {
+    const rows = [
+      ["Metric", "Value"],
+      ["Model", model],
+      ["Buy Price", results.buyPrice],
+      ["Buy Commission (%)", results.buyCommPct],
+      ["Buy Commission Amount", results.buyCommAmount],
+      ["Cost to Buy", results.costToBuy],
+      ["Sell Price", results.sellPrice],
+      ["Sell Commission (%)", results.sellCommPct],
+      ["Sell Commission Amount", results.sellCommAmount],
+      ["Net Sale Revenue", results.netSaleRevenue],
+      ["Total Profit", results.totalProfit],
+      ["Jusur %", results.jusurPct],
+      ["Jusur Profit Cut", results.jusurProfitCut],
+      ["Investor Profit", results.investorProfit],
+      ["Investor ROI %", results.investorROI],
+      ["Jusur Total Revenue", results.jusurTotalRevenue],
+      ["Your Share (50%)", results.yourShare],
+      ["Partner Share (50%)", results.partnerShare],
+    ];
+    const csv = rows.map(r => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `JusurCalc_${model}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const reset = () => setInputs(defaultInputs);
+
+  const pieData = useMemo(() => ([
+    { name: "Investor Profit", value: Math.max(0, results.investorProfit) },
+    { name: "Jusur Profit Cut", value: Math.max(0, results.jusurProfitCut) },
+  ]), [results]);
+
+  const barData = useMemo(() => ([
+    { name: "Profit", amount: results.totalProfit },
+    { name: "Investor Profit", amount: results.investorProfit },
+    { name: "Jusur Profit", amount: results.jusurProfitCut },
+  ]), [results]);
+
+  return (
+    <div className="min-h-screen w-full bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 p-4 md:p-8">
+      <motion.header initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="max-w-6xl mx-auto flex items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-2xl bg-indigo-100 dark:bg-indigo-900"><Calculator className="w-6 h-6 text-indigo-600 dark:text-indigo-300"/></div>
+          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100">Jusur Calc</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={exportCSV} className="rounded-2xl"><Download className="w-4 h-4 mr-2"/>Export CSV</Button>
+          <Button variant="outline" onClick={reset} className="rounded-2xl"><RefreshCcw className="w-4 h-4 mr-2"/>Reset</Button>
+          <div className="flex items-center gap-2 px-2">
+            <Sun className="w-4 h-4 text-slate-500"/>
+            <Switch checked={dark} onCheckedChange={setDark} />
+            <Moon className="w-4 h-4 text-slate-500"/>
+          </div>
+        </div>
+      </motion.header>
+
+      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="rounded-2xl shadow-sm border-slate-200 dark:border-slate-800 lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="text-slate-800 dark:text-slate-100">Inputs</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label>Model</Label>
+              <Select value={model} onValueChange={setModel}>
+                <SelectTrigger className="mt-1 rounded-xl">
+                  <SelectValue placeholder="Select model" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SLIDING">Sliding (20% → 45%)</SelectItem>
+                  <SelectItem value="PROGRESSIVE">Progressive Tiers</SelectItem>
+                  <SelectItem value="FLAT">Flat %</SelectItem>
+                  <SelectItem value="ROI">ROI-Based</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label>Buy Price (EGP)</Label>
+                <Input type="number" className="rounded-xl" value={inputs.buyPrice} onChange={onChangeNum("buyPrice")} />
+              </div>
+              <div>
+                <Label>Sell Price (EGP)</Label>
+                <Input type="number" className="rounded-xl" value={inputs.sellPrice} onChange={onChangeNum("sellPrice")} />
+              </div>
+              <div>
+                <Label>Buy Commission %</Label>
+                <Input type="number" step="0.1" className="rounded-xl" value={inputs.buyCommPct} onChange={onChangeNum("buyCommPct")} />
+              </div>
+              <div>
+                <Label>Sell Commission %</Label>
+                <Input type="number" step="0.1" className="rounded-xl" value={inputs.sellCommPct} onChange={onChangeNum("sellCommPct")} />
+              </div>
+              <div>
+                <Label>Holding Period (months)</Label>
+                <Input type="number" className="rounded-xl" value={inputs.holdingMonths} onChange={onChangeNum("holdingMonths")} />
+                <p className="text-xs text-slate-500 mt-1">Used for ROI display and ROI-based model thresholds.</p>
+              </div>
+              {model === "FLAT" && (
+                <div>
+                  <Label>Flat % for Jusur</Label>
+                  <Input type="number" step="0.5" className="rounded-xl" value={inputs.flatPct} onChange={onChangeNum("flatPct")} />
+                </div>
+              )}
+              {model === "ROI" && (
+                <div className="md:col-span-2 grid grid-cols-3 gap-4">
+                  <div>
+                    <Label>ROI Tier 1 (%)</Label>
+                    <Input type="number" className="rounded-xl" value={inputs.roiTier1} onChange={onChangeNum("roiTier1")} />
+                  </div>
+                  <div>
+                    <Label>ROI Tier 2 (%)</Label>
+                    <Input type="number" className="rounded-xl" value={inputs.roiTier2} onChange={onChangeNum("roiTier2")} />
+                  </div>
+                  <div className="col-span-3 grid grid-cols-3 gap-4 mt-2">
+                    <div>
+                      <Label>Jusur % ≤ Tier1</Label>
+                      <Input type="number" className="rounded-xl" value={inputs.roiPct1} onChange={onChangeNum("roiPct1")} />
+                    </div>
+                    <div>
+                      <Label>Jusur % within Tier2</Label>
+                      <Input type="number" className="rounded-xl" value={inputs.roiPct2} onChange={onChangeNum("roiPct2")} />
+                    </div>
+                    <div>
+                      <Label>Jusur % > Tier2</Label>
+                      <Input type="number" className="rounded-xl" value={inputs.roiPct3} onChange={onChangeNum("roiPct3")} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <Tabs value={chartType} onValueChange={setChartType} className="mt-2">
+              <TabsList className="rounded-xl">
+                <TabsTrigger value="PIE">Pie</TabsTrigger>
+                <TabsTrigger value="BAR">Bar</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl shadow-sm border-slate-200 dark:border-slate-800 lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-slate-800 dark:text-slate-100">Results</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <KPI title="Cost to Buy" value={nf(results.costToBuy)} />
+              <KPI title="Net Sale Revenue" value={nf(results.netSaleRevenue)} />
+              <KPI title="Total Profit" value={nf(results.totalProfit)} highlight />
+              <KPI title="Jusur %" value={`${(results.jusurPct * 100).toFixed(2)}%`} />
+              <KPI title="Jusur Profit Cut" value={nf(results.jusurProfitCut)} />
+              <KPI title="Investor Profit" value={nf(results.investorProfit)} />
+              <KPI title="Investor ROI" value={`${results.investorROI.toFixed(2)}%`} />
+              <KPI title="Jusur Total Revenue" value={nf(results.jusurTotalRevenue)} />
+              <KPI title="Your Share / Partner" value={`${nf(results.yourShare)} / ${nf(results.partnerShare)}`} />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+              <div className="h-72 w-full">
+                {chartType === "PIE" ? (
+                  <ResponsiveContainer>
+                    <PieChart>
+                      <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={90}>
+                        {pieData.map((entry, index) => (
+                          <Cell key={`c-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Legend />
+                      <ReTooltip formatter={(v) => nf(v as number)} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <ResponsiveContainer>
+                    <BarChart data={barData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis tickFormatter={(v) => `${Math.round(v/1000)}k`} />
+                      <ReTooltip formatter={(v) => nf(v as number)} />
+                      <Legend />
+                      <Bar dataKey="amount" name="Amount">
+                        {barData.map((_, i) => (
+                          <Cell key={`b-${i}`} fill={COLORS[i % COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+
+              <div className="rounded-2xl p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-2 flex items-center gap-2"><TrendingUp className="w-5 h-5"/> Breakdown</h3>
+                <ul className="space-y-1 text-sm text-slate-700 dark:text-slate-300">
+                  <li>Buy Commission: <strong>{nf(results.buyCommAmount)}</strong></li>
+                  <li>Sell Commission: <strong>{nf(results.sellCommAmount)}</strong></li>
+                  <li>Jusur % (model {model}): <strong>{(results.jusurPct * 100).toFixed(2)}%</strong></li>
+                  <li>Investor Final Return: <strong>{nf(results.investorFinalReturn)}</strong></li>
+                  <li>Investor Profit % of Total: <strong>{results.investorProfitPercent.toFixed(2)}%</strong></li>
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <footer className="max-w-6xl mx-auto mt-8 text-center text-xs text-slate-500 dark:text-slate-400">
+        Jusur Calc • Sliding and alternative models • Built for offline/online use
+      </footer>
+    </div>
+  );
+}
+
+function KPI({ title, value, highlight = false }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+      <div className={`rounded-2xl p-4 border ${highlight ? "bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-800" : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"}`}>
+        <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{title}</p>
+        <p className={`mt-1 text-xl font-semibold ${highlight ? "text-indigo-700 dark:text-indigo-300" : "text-slate-800 dark:text-slate-100"}`}>{value}</p>
+      </div>
+    </motion.div>
+  );
+}
+
+function computeResults(model, p) {
+  const buyCommAmount = (p.buyPrice || 0) * (p.buyCommPct || 0) / 100;
+  const costToBuy = (p.buyPrice || 0) + buyCommAmount;
+  const sellCommAmount = (p.sellPrice || 0) * (p.sellCommPct || 0) / 100;
+  const netSaleRevenue = (p.sellPrice || 0) - sellCommAmount;
+  const totalProfit = netSaleRevenue - costToBuy;
+
+  // Jusur % per selected model
+  let jusurPct = 0;
+  if (totalProfit <= 0) {
+    jusurPct = 0; // no profit, no cut
+  } else if (model === "SLIDING") {
+    // Sliding: 20% + (profit/2,000,000)*25%, capped 45%
+    jusurPct = clamp(0.20 + (totalProfit / 2000000) * 0.25, 0.20, 0.45);
+  } else if (model === "PROGRESSIVE") {
+    // Progressive tiers, tax-style on profit chunks: 25% up to 500k, 35% next 500k, 45% remainder
+    const tier1 = Math.min(totalProfit, 500000);
+    const tier2 = Math.min(Math.max(totalProfit - 500000, 0), 500000);
+    const tier3 = Math.max(totalProfit - 1000000, 0);
+    const jusurCut = tier1 * 0.25 + tier2 * 0.35 + tier3 * 0.45;
+    jusurPct = jusurCut / totalProfit;
+  } else if (model === "FLAT") {
+    jusurPct = clamp((p.flatPct || 0) / 100, 0, 0.9);
+  } else if (model === "ROI") {
+    // ROI tiers based on investor ROI against costToBuy
+    const investorROI = costToBuy > 0 ? (totalProfit / costToBuy) * 100 : 0;
+    if (investorROI <= (p.roiTier1 || 0)) jusurPct = (p.roiPct1 || 0) / 100;
+    else if (investorROI <= (p.roiTier2 || 0)) jusurPct = (p.roiPct2 || 0) / 100;
+    else jusurPct = (p.roiPct3 || 0) / 100;
+  }
+
+  const jusurProfitCut = Math.max(0, totalProfit * jusurPct);
+  const investorProfit = Math.max(0, totalProfit - jusurProfitCut);
+  const investorFinalReturn = costToBuy + investorProfit;
+  const jusurTotalRevenue = buyCommAmount + jusurProfitCut;
+  const yourShare = jusurTotalRevenue / 2;
+  const partnerShare = jusurTotalRevenue / 2;
+  const investorROI = costToBuy > 0 ? (investorProfit / costToBuy) * 100 : 0;
+  const investorProfitPercent = totalProfit > 0 ? (investorProfit / totalProfit) * 100 : 0;
+
+  return {
+    // echo inputs for CSV
+    buyPrice: p.buyPrice,
+    sellPrice: p.sellPrice,
+    buyCommPct: p.buyCommPct,
+    sellCommPct: p.sellCommPct,
+
+    // computed
+    buyCommAmount,
+    costToBuy,
+    sellCommAmount,
+    netSaleRevenue,
+    totalProfit,
+    jusurPct,
+    jusurProfitCut,
+    investorProfit,
+    investorFinalReturn,
+    jusurTotalRevenue,
+    yourShare,
+    partnerShare,
+    investorROI,
+    investorProfitPercent,
+  };
+}

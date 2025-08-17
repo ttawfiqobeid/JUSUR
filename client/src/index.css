@@ -1,0 +1,274 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(210 25% 7.8431%);
+  --card: hsl(240 5.9% 98%);
+  --card-foreground: hsl(210 25% 7.8431%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(210 25% 7.8431%);
+  --primary: hsl(203.8863 88.2845% 53.1373%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(210 25% 7.8431%);
+  --secondary-foreground: hsl(0 0% 100%);
+  --muted: hsl(240 1.9608% 90%);
+  --muted-foreground: hsl(210 25% 7.8431%);
+  --accent: hsl(211.5789 51.3514% 92.7451%);
+  --accent-foreground: hsl(203.8863 88.2845% 53.1373%);
+  --destructive: hsl(356.3033 90.5579% 54.3137%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --border: hsl(201.4286 30.4348% 90.9804%);
+  --input: hsl(200 23.0769% 97.4510%);
+  --ring: hsl(202.8169 89.1213% 53.1373%);
+  --chart-1: hsl(203.8863 88.2845% 53.1373%);
+  --chart-2: hsl(159.7826 100% 36.0784%);
+  --chart-3: hsl(42.0290 92.8251% 56.2745%);
+  --chart-4: hsl(147.1429 78.5047% 41.9608%);
+  --chart-5: hsl(341.4894 75.2000% 50.9804%);
+  --sidebar: hsl(240 5.9% 98%);
+  --sidebar-foreground: hsl(210 25% 7.8431%);
+  --sidebar-primary: hsl(203.8863 88.2845% 53.1373%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(211.5789 51.3514% 92.7451%);
+  --sidebar-accent-foreground: hsl(203.8863 88.2845% 53.1373%);
+  --sidebar-border: hsl(205.0000 25.0000% 90.5882%);
+  --sidebar-ring: hsl(202.8169 89.1213% 53.1373%);
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'San Francisco', 'Segoe UI', 'Roboto', sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: Menlo, monospace;
+  --radius: 1.3rem;
+  --shadow-2xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
+  --shadow-xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
+  --shadow-sm: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
+  --shadow: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
+  --shadow-md: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 2px 4px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
+  --shadow-lg: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 4px 6px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
+  --shadow-xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 8px 10px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
+  --shadow-2xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+  
+  /* iOS-specific variables */
+  --ios-blue: hsl(211 100% 50%);
+  --ios-light-blue: hsl(195 85% 65%);
+  --ios-green: hsl(145 70% 51%);
+  --ios-orange: hsl(25 95% 53%);
+  --ios-red: hsl(4 90% 58%);
+  --ios-gray: hsl(230 7% 56%);
+  --ios-light-gray: hsl(225 9% 96%);
+  --ios-dark: hsl(225 9% 11%);
+  --ios-dark-elevated: hsl(225 9% 18%);
+}
+
+.dark {
+  --background: hsl(225 9% 11%);
+  --foreground: hsl(225 9% 91%);
+  --card: hsl(225 9% 18%);
+  --card-foreground: hsl(225 9% 85%);
+  --popover: hsl(225 9% 11%);
+  --popover-foreground: hsl(225 9% 91%);
+  --primary: hsl(211 85% 53%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(225 9% 94%);
+  --secondary-foreground: hsl(210 25% 7.8431%);
+  --muted: hsl(225 9% 9%);
+  --muted-foreground: hsl(225 5% 46%);
+  --accent: hsl(205 70% 8%);
+  --accent-foreground: hsl(211 85% 53%);
+  --destructive: hsl(4 90% 58%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --border: hsl(225 5% 15%);
+  --input: hsl(225 27% 18%);
+  --ring: hsl(211 85% 53%);
+  --chart-1: hsl(211 85% 53%);
+  --chart-2: hsl(145 70% 51%);
+  --chart-3: hsl(25 95% 53%);
+  --chart-4: hsl(147.1429 78.5047% 41.9608%);
+  --chart-5: hsl(341.4894 75.2000% 50.9804%);
+  --sidebar: hsl(225 9% 18%);
+  --sidebar-foreground: hsl(225 9% 85%);
+  --sidebar-primary: hsl(211 85% 53%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(205 70% 8%);
+  --sidebar-accent-foreground: hsl(211 85% 53%);
+  --sidebar-border: hsl(225 5% 26%);
+  --sidebar-ring: hsl(211 85% 53%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    font-family: var(--font-sans);
+  }
+  
+  .font-ios {
+    font-family: var(--font-sans);
+  }
+}
+
+@layer components {
+  .glassmorphism {
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+  
+  .ios-button {
+    transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  
+  .ios-button:active {
+    transform: scale(0.96);
+  }
+  
+  .ios-input {
+    @apply w-full px-4 py-3 bg-white/60 dark:bg-gray-800/60 border border-white/30 dark:border-white/20 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all;
+  }
+  
+  .chart-container {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(20px);
+  }
+  
+  .dark .chart-container {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .kpi-card {
+    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  
+  .shadow-ios {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  }
+  
+  .dark .shadow-ios {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+  
+  .rounded-ios {
+    border-radius: 20px;
+  }
+  
+  .rounded-ios-xl {
+    border-radius: 28px;
+  }
+  
+  .backdrop-blur-ios {
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+}
+
+@layer utilities {
+  .text-ios-blue {
+    color: var(--ios-blue);
+  }
+  
+  .text-ios-light-blue {
+    color: var(--ios-light-blue);
+  }
+  
+  .text-ios-green {
+    color: var(--ios-green);
+  }
+  
+  .text-ios-orange {
+    color: var(--ios-orange);
+  }
+  
+  .text-ios-red {
+    color: var(--ios-red);
+  }
+  
+  .text-ios-gray {
+    color: var(--ios-gray);
+  }
+  
+  .bg-ios-blue {
+    background-color: var(--ios-blue);
+  }
+  
+  .bg-ios-light-blue {
+    background-color: var(--ios-light-blue);
+  }
+  
+  .bg-ios-green {
+    background-color: var(--ios-green);
+  }
+  
+  .bg-ios-orange {
+    background-color: var(--ios-orange);
+  }
+  
+  .bg-ios-red {
+    background-color: var(--ios-red);
+  }
+  
+  .bg-ios-gray {
+    background-color: var(--ios-gray);
+  }
+  
+  .bg-ios-light-gray {
+    background-color: var(--ios-light-gray);
+  }
+  
+  .bg-ios-dark {
+    background-color: var(--ios-dark);
+  }
+  
+  .bg-ios-dark-elevated {
+    background-color: var(--ios-dark-elevated);
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.2);
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.2);
+}
+
+/* Smooth animations */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.slide-in {
+  animation: slideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.fade-in {
+  animation: fadeIn 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
