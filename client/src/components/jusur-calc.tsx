@@ -34,17 +34,20 @@ const nf = (n: number) => {
 const COLORS = ["#007AFF", "#5AC8FA", "#34C759", "#FF9500", "#FF3B30"];
 
 const defaultInputs = {
-  buyPrice: 5600000,
-  sellPrice: 7200000,
-  buyCommPct: 1.0,
-  sellCommPct: 1.5,
-  holdingMonths: 8,
-  flatPct: 30,
-  roiTier1: 10,
-  roiTier2: 20,
-  roiPct1: 20,
-  roiPct2: 30,
-  roiPct3: 40,
+  buyPrice: 0,
+  sellPrice: 0,
+  buyCommPct: 0,
+  sellCommPct: 0,
+  holdingMonths: 0,
+  flatPct: 0,
+  roiTier1: 0,
+  roiTier2: 0,
+  roiPct1: 0,
+  roiPct2: 0,
+  roiPct3: 0,
+  agentCommPct: 0,
+  agentCommAmount: 0,
+  useAgentPct: true,
 };
 
 function clamp(v: number, min: number, max: number): number { 
@@ -78,6 +81,7 @@ interface ComputeResults {
   buyCommAmount: number;
   costToBuy: number;
   sellCommAmount: number;
+  agentCommAmount: number;
   netSaleRevenue: number;
   totalProfit: number;
   jusurPct: number;
@@ -95,7 +99,13 @@ function computeResults(model: string, p: typeof defaultInputs): ComputeResults 
   const buyCommAmount = (p.buyPrice || 0) * (p.buyCommPct || 0) / 100;
   const costToBuy = (p.buyPrice || 0) + buyCommAmount;
   const sellCommAmount = (p.sellPrice || 0) * (p.sellCommPct || 0) / 100;
-  const netSaleRevenue = (p.sellPrice || 0) - sellCommAmount;
+  
+  // Calculate agent commission
+  const agentCommAmount = p.useAgentPct 
+    ? (p.sellPrice || 0) * (p.agentCommPct || 0) / 100
+    : (p.agentCommAmount || 0);
+  
+  const netSaleRevenue = (p.sellPrice || 0) - sellCommAmount - agentCommAmount;
   const totalProfit = netSaleRevenue - costToBuy;
 
   // Jusur % per selected model
@@ -142,6 +152,7 @@ function computeResults(model: string, p: typeof defaultInputs): ComputeResults 
     buyCommAmount,
     costToBuy,
     sellCommAmount,
+    agentCommAmount,
     netSaleRevenue,
     totalProfit,
     jusurPct,
@@ -156,17 +167,52 @@ function computeResults(model: string, p: typeof defaultInputs): ComputeResults 
   };
 }
 
+// Number formatting helper
+const formatNumberInput = (value: string): string => {
+  // Remove all non-numeric characters
+  const numericValue = value.replace(/[^\d]/g, '');
+  // Add commas for thousands separator
+  return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+};
+
+const parseNumberInput = (value: string): number => {
+  return parseFloat(value.replace(/,/g, '')) || 0;
+};
+
 export default function JusurCalcApp() {
   const [dark, setDark] = useDarkMode();
   const [model, setModel] = useState("SLIDING");
   const [chartType, setChartType] = useState("PIE");
   const [inputs, setInputs] = useState(defaultInputs);
+  const [activeTab, setActiveTab] = useState("calculator");
   const { toast } = useToast();
 
-  const onChangeNum = (key: keyof typeof defaultInputs) => (e: React.ChangeEvent<HTMLInputElement>) => 
-    setInputs((s) => ({ ...s, [key]: parseFloat(e.target.value || "0") }));
+  const onChangeNum = (key: keyof typeof defaultInputs) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    if (key === 'buyPrice' || key === 'sellPrice' || key === 'agentCommAmount') {
+      // For price fields, format with commas
+      const formattedValue = formatNumberInput(rawValue);
+      e.target.value = formattedValue;
+      setInputs((s) => ({ ...s, [key]: parseNumberInput(formattedValue) }));
+    } else {
+      setInputs((s) => ({ ...s, [key]: parseFloat(rawValue) || 0 }));
+    }
+  };
+
+  const onChangeAgentType = (usePercent: boolean) => {
+    setInputs((s) => ({ ...s, useAgentPct: usePercent }));
+  };
 
   const results = useMemo(() => computeResults(model, inputs), [model, inputs]);
+  
+  // Scenario comparison - compute results for all models
+  const scenarioResults = useMemo(() => {
+    const models = ["SLIDING", "PROGRESSIVE", "FLAT", "ROI"];
+    return models.map(modelType => ({
+      model: modelType,
+      ...computeResults(modelType, inputs)
+    }));
+  }, [inputs]);
 
   const exportCSV = () => {
     const rows = [
@@ -347,6 +393,17 @@ export default function JusurCalcApp() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        {/* Tab Navigation */}
+        <div className="mb-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="glassmorphism bg-white/80 dark:bg-ios-dark-elevated/80 rounded-ios-xl border border-white/20 dark:border-white/10">
+              <TabsTrigger value="calculator" className="rounded-lg">Calculator</TabsTrigger>
+              <TabsTrigger value="scenarios" className="rounded-lg">Scenario Comparison</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {activeTab === "calculator" && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
           {/* Input Panel */}
@@ -395,11 +452,11 @@ export default function JusurCalcApp() {
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">EGP</span>
                     <Input 
-                      type="number" 
+                      type="text" 
                       className="ios-input pl-12" 
-                      value={inputs.buyPrice} 
+                      value={inputs.buyPrice ? formatNumberInput(inputs.buyPrice.toString()) : ''} 
                       onChange={onChangeNum("buyPrice")}
-                      placeholder="5,600,000"
+                      placeholder="0"
                       data-testid="input-buyprice"
                     />
                   </div>
@@ -413,11 +470,11 @@ export default function JusurCalcApp() {
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">EGP</span>
                     <Input 
-                      type="number" 
+                      type="text" 
                       className="ios-input pl-12" 
-                      value={inputs.sellPrice} 
+                      value={inputs.sellPrice ? formatNumberInput(inputs.sellPrice.toString()) : ''} 
                       onChange={onChangeNum("sellPrice")}
-                      placeholder="7,200,000"
+                      placeholder="0"
                       data-testid="input-sellprice"
                     />
                   </div>
@@ -431,7 +488,7 @@ export default function JusurCalcApp() {
                         type="number" 
                         step="0.1" 
                         className="ios-input pr-8" 
-                        value={inputs.buyCommPct} 
+                        value={inputs.buyCommPct || ''} 
                         onChange={onChangeNum("buyCommPct")}
                         placeholder="0.0"
                         data-testid="input-buycomm"
@@ -447,7 +504,7 @@ export default function JusurCalcApp() {
                         type="number" 
                         step="0.1" 
                         className="ios-input pr-8" 
-                        value={inputs.sellCommPct} 
+                        value={inputs.sellCommPct || ''} 
                         onChange={onChangeNum("sellCommPct")}
                         placeholder="0.0"
                         data-testid="input-sellcomm"
@@ -465,12 +522,62 @@ export default function JusurCalcApp() {
                   <Input 
                     type="number" 
                     className="ios-input" 
-                    value={inputs.holdingMonths} 
+                    value={inputs.holdingMonths || ''} 
                     onChange={onChangeNum("holdingMonths")}
-                    placeholder="8"
+                    placeholder="0"
                     data-testid="input-holdingperiod"
                   />
                   <p className="text-xs text-ios-gray dark:text-gray-400 mt-1">Used for ROI calculations and model thresholds</p>
+                </div>
+
+                {/* Agent Commission Section */}
+                <div className="space-y-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-gray-700 dark:text-gray-300">Outside Agent Commission (Optional)</Label>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-gray-500">%</span>
+                      <Switch 
+                        checked={inputs.useAgentPct} 
+                        onCheckedChange={onChangeAgentType}
+                      />
+                      <span className="text-xs text-gray-500">Amount</span>
+                    </div>
+                  </div>
+                  
+                  {inputs.useAgentPct ? (
+                    <div>
+                      <Label className="text-gray-700 dark:text-gray-300 mb-2">Agent Commission %</Label>
+                      <div className="relative">
+                        <Input 
+                          type="number" 
+                          step="0.1" 
+                          className="ios-input pr-8" 
+                          value={inputs.agentCommPct || ''} 
+                          onChange={onChangeNum("agentCommPct")}
+                          placeholder="0.0"
+                          data-testid="input-agentcommpct"
+                        />
+                        <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">%</span>
+                      </div>
+                      <p className="text-xs text-ios-gray dark:text-gray-400 mt-1">Percentage of total sale price</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <Label className="text-gray-700 dark:text-gray-300 mb-2">Agent Commission Amount</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">EGP</span>
+                        <Input 
+                          type="text" 
+                          className="ios-input pl-12" 
+                          value={inputs.agentCommAmount ? formatNumberInput(inputs.agentCommAmount.toString()) : ''} 
+                          onChange={onChangeNum("agentCommAmount")}
+                          placeholder="0"
+                          data-testid="input-agentcommamount"
+                        />
+                      </div>
+                      <p className="text-xs text-ios-gray dark:text-gray-400 mt-1">Fixed commission amount</p>
+                    </div>
+                  )}
                 </div>
 
                 {model === "FLAT" && (
@@ -719,6 +826,7 @@ export default function JusurCalcApp() {
                   <DetailItem label="Total Profit" value={nf(results.totalProfit)} highlight />
                   <DetailItem label="Buy Commission" value={nf(results.buyCommAmount)} />
                   <DetailItem label="Sell Commission" value={nf(results.sellCommAmount)} />
+                  <DetailItem label="Agent Commission" value={nf(results.agentCommAmount)} />
                   <DetailItem label="Jusur Profit Cut" value={nf(results.jusurProfitCut)} />
                   <DetailItem label="Investor Profit" value={nf(results.investorProfit)} />
                   <DetailItem label="Jusur Total Revenue" value={nf(results.jusurTotalRevenue)} />
@@ -728,6 +836,75 @@ export default function JusurCalcApp() {
             </Card>
           </motion.div>
         </div>
+        )}
+
+        {activeTab === "scenarios" && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          className="space-y-6"
+        >
+          <Card className="glassmorphism bg-white/80 dark:bg-ios-dark-elevated/80 rounded-ios-xl border border-white/20 dark:border-white/10 shadow-ios">
+            <CardHeader>
+              <CardTitle className="text-gray-900 dark:text-white">Model Comparison</CardTitle>
+              <p className="text-sm text-ios-gray dark:text-gray-400">Compare all calculation models with your current inputs</p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                {scenarioResults.map((scenario, index) => (
+                  <Card key={scenario.model} className={`border-2 ${scenario.model === model ? 'border-ios-blue bg-ios-blue/5' : 'border-gray-200 dark:border-gray-700'}`}>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center justify-between">
+                        {scenario.model === "SLIDING" && "Sliding Scale"}
+                        {scenario.model === "PROGRESSIVE" && "Progressive"}
+                        {scenario.model === "FLAT" && "Flat Rate"}
+                        {scenario.model === "ROI" && "ROI-Based"}
+                        {scenario.model === model && <span className="text-xs bg-ios-blue text-white px-2 py-1 rounded-full">Current</span>}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Total Profit</span>
+                          <span className="font-semibold">{nf(scenario.totalProfit)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Jusur %</span>
+                          <span className="font-semibold text-ios-blue">{(scenario.jusurPct * 100).toFixed(1)}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Investor Profit</span>
+                          <span className="font-semibold text-ios-green">{nf(scenario.investorProfit)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Investor ROI</span>
+                          <span className="font-semibold">{scenario.investorROI.toFixed(2)}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Your Share</span>
+                          <span className="font-semibold text-ios-orange">{nf(scenario.yourShare)}</span>
+                        </div>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full mt-3"
+                        onClick={() => {
+                          setModel(scenario.model);
+                          setActiveTab("calculator");
+                        }}
+                        disabled={scenario.model === model}
+                      >
+                        {scenario.model === model ? "Current Model" : "Switch to This Model"}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+        )}
       </main>
     </div>
   );
