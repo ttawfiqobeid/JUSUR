@@ -8,14 +8,28 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PieChart, Pie, Cell, Tooltip as ReTooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, AreaChart, Area } from "recharts";
 import { Download, RefreshCcw, Calculator, TrendingUp, Moon, Sun, Settings, HelpCircle, Share } from "lucide-react";
-import jusurLogo from "@assets/Untitled (1)_1755461782911.png";
+import jusurLogo from "@assets/jusur-logo-new.png";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import KPICard from "@/components/kpi-card";
 import ChartSelector from "@/components/chart-selector";
 
-const formatter = new Intl.NumberFormat("en-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 2 });
-const nf = (n: number) => (isFinite(n) ? formatter.format(n || 0) : "—");
+const formatter = new Intl.NumberFormat("en-EG", { 
+  style: "currency", 
+  currency: "EGP", 
+  maximumFractionDigits: 0,
+  notation: "compact",
+  compactDisplay: "short"
+});
+const nf = (n: number) => {
+  if (!isFinite(n)) return "—";
+  if (Math.abs(n) >= 1000000) {
+    return `EGP ${(n / 1000000).toFixed(1)}M`;
+  } else if (Math.abs(n) >= 1000) {
+    return `EGP ${(n / 1000).toFixed(0)}K`;
+  }
+  return `EGP ${n.toLocaleString()}`;
+};
 
 const COLORS = ["#007AFF", "#5AC8FA", "#34C759", "#FF9500", "#FF3B30"];
 
@@ -549,8 +563,8 @@ export default function JusurCalcApp() {
                 <CardTitle className="text-gray-900 dark:text-white">Analytics</CardTitle>
                 <ChartSelector chartType={chartType} onChartTypeChange={setChartType} />
               </CardHeader>
-              <CardContent>
-                <div className="h-80 w-full">
+              <CardContent className="p-4">
+                <div className="h-80 w-full bg-white dark:bg-gray-900 rounded-lg p-2">
                   {chartType === "PIE" && (
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
@@ -567,7 +581,14 @@ export default function JusurCalcApp() {
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                           ))}
                         </Pie>
-                        <ReTooltip formatter={(value) => nf(value as number)} />
+                        <ReTooltip 
+                          formatter={(value) => nf(value as number)}
+                          contentStyle={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '8px'
+                          }}
+                        />
                         <Legend />
                       </PieChart>
                     </ResponsiveContainer>
@@ -575,12 +596,27 @@ export default function JusurCalcApp() {
                   
                   {chartType === "BAR" && (
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={barData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis tickFormatter={(value) => `${Math.round(value / 1000)}k`} />
-                        <ReTooltip formatter={(value) => nf(value as number)} />
-                        <Bar dataKey="amount">
+                      <BarChart data={barData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis 
+                          dataKey="name" 
+                          tick={{ fontSize: 12, fill: '#6b7280' }}
+                          axisLine={{ stroke: '#d1d5db' }}
+                        />
+                        <YAxis 
+                          tickFormatter={(value) => `${Math.round(value / 1000)}K`}
+                          tick={{ fontSize: 12, fill: '#6b7280' }}
+                          axisLine={{ stroke: '#d1d5db' }}
+                        />
+                        <ReTooltip 
+                          formatter={(value) => nf(value as number)}
+                          contentStyle={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '8px'
+                          }}
+                        />
+                        <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
                           {barData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                           ))}
@@ -591,28 +627,68 @@ export default function JusurCalcApp() {
                   
                   {chartType === "LINE" && (
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={timelineData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="month" />
-                        <YAxis />
-                        <ReTooltip />
+                      <LineChart data={timelineData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis 
+                          dataKey="month" 
+                          tick={{ fontSize: 12, fill: '#6b7280' }}
+                          axisLine={{ stroke: '#d1d5db' }}
+                        />
+                        <YAxis 
+                          tick={{ fontSize: 12, fill: '#6b7280' }}
+                          axisLine={{ stroke: '#d1d5db' }}
+                        />
+                        <ReTooltip 
+                          contentStyle={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '8px'
+                          }}
+                        />
                         <Legend />
-                        <Line type="monotone" dataKey="roi" stroke={COLORS[0]} strokeWidth={2} />
-                        <Line type="monotone" dataKey="profit" stroke={COLORS[1]} strokeWidth={2} />
+                        <Line type="monotone" dataKey="roi" stroke={COLORS[0]} strokeWidth={3} dot={{ r: 4 }} />
+                        <Line type="monotone" dataKey="profit" stroke={COLORS[1]} strokeWidth={3} dot={{ r: 4 }} />
                       </LineChart>
                     </ResponsiveContainer>
                   )}
                   
                   {chartType === "AREA" && (
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={timelineData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="month" />
-                        <YAxis />
-                        <ReTooltip />
+                      <AreaChart data={timelineData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis 
+                          dataKey="month" 
+                          tick={{ fontSize: 12, fill: '#6b7280' }}
+                          axisLine={{ stroke: '#d1d5db' }}
+                        />
+                        <YAxis 
+                          tick={{ fontSize: 12, fill: '#6b7280' }}
+                          axisLine={{ stroke: '#d1d5db' }}
+                        />
+                        <ReTooltip 
+                          contentStyle={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '8px'
+                          }}
+                        />
                         <Legend />
-                        <Area type="monotone" dataKey="profit" stackId="1" stroke={COLORS[0]} fill={COLORS[0]} />
-                        <Area type="monotone" dataKey="roi" stackId="2" stroke={COLORS[1]} fill={COLORS[1]} />
+                        <Area 
+                          type="monotone" 
+                          dataKey="profit" 
+                          stackId="1" 
+                          stroke={COLORS[0]} 
+                          fill={COLORS[0]}
+                          fillOpacity={0.7}
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="roi" 
+                          stackId="2" 
+                          stroke={COLORS[1]} 
+                          fill={COLORS[1]}
+                          fillOpacity={0.7}
+                        />
                       </AreaChart>
                     </ResponsiveContainer>
                   )}

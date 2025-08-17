@@ -16,7 +16,7 @@ export default function KPICard({ title, value, icon: Icon, color, change, chang
       initial={{ opacity: 0, y: 20 }} 
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -4 }}
-      className="kpi-card glassmorphism bg-white/80 dark:bg-ios-dark-elevated/80 rounded-ios border border-white/20 dark:border-white/10 shadow-ios p-4 transition-all duration-300"
+      className="kpi-card glassmorphism bg-white/80 dark:bg-ios-dark-elevated/80 rounded-ios border border-white/20 dark:border-white/10 shadow-ios p-3 transition-all duration-300 min-h-[120px] flex flex-col justify-between"
       data-testid={`card-${title.toLowerCase().replace(/\s+/g, '-')}`}
     >
       <div className="flex items-center justify-between mb-2">
@@ -25,10 +25,10 @@ export default function KPICard({ title, value, icon: Icon, color, change, chang
         </div>
         <span className="text-xs text-ios-gray dark:text-gray-400">{title.split(' ').pop()}</span>
       </div>
-      <div className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white" data-testid={`text-${title.toLowerCase().replace(/\s+/g, '-')}-value`}>
+      <div className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white break-words overflow-hidden" data-testid={`text-${title.toLowerCase().replace(/\s+/g, '-')}-value`}>
         {value}
       </div>
-      <div className="text-sm text-ios-gray dark:text-gray-400">{title}</div>
+      <div className="text-xs text-ios-gray dark:text-gray-400 truncate">{title}</div>
       {change && (
         <div className={`text-xs mt-1 flex items-center ${
           changeType === "positive" ? "text-ios-green" : 
