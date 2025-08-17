@@ -59,14 +59,14 @@ function useDarkMode() {
     }
     return false;
   });
-  
+
   useEffect(() => {
     if (typeof document !== "undefined") {
       document.documentElement.classList.toggle("dark", dark);
       window.localStorage.setItem("jusur_dark", dark ? "1" : "0");
     }
   }, [dark]);
-  
+
   return [dark, setDark] as const;
 }
 
@@ -197,7 +197,7 @@ export default function JusurCalcApp() {
     a.download = `JusurCalc_${model}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    
+
     toast({
       title: "Export Complete",
       description: "CSV file has been downloaded successfully.",
@@ -301,7 +301,7 @@ export default function JusurCalcApp() {
                 <p className="text-xs sm:text-sm text-ios-gray dark:text-gray-400">Investment Calculator</p>
               </div>
             </div>
-            
+
             {/* Actions */}
             <div className="flex items-center space-x-2 sm:space-x-3">
               <Button
@@ -313,7 +313,7 @@ export default function JusurCalcApp() {
                 <Share className="w-4 h-4 mr-2" />
                 <span className="hidden sm:inline">Share</span>
               </Button>
-              
+
               <Button
                 variant="outline"
                 onClick={exportCSV}
@@ -323,7 +323,7 @@ export default function JusurCalcApp() {
                 <Download className="w-4 h-4 mr-2" />
                 <span className="hidden sm:inline">Export</span>
               </Button>
-              
+
               <Button
                 variant="outline"
                 onClick={reset}
@@ -333,7 +333,7 @@ export default function JusurCalcApp() {
                 <RefreshCcw className="w-4 h-4 mr-2" />
                 <span className="hidden sm:inline">Reset</span>
               </Button>
-              
+
               {/* Dark Mode Toggle */}
               <div className="flex items-center space-x-2 px-2">
                 <Sun className="w-4 h-4 text-ios-gray dark:text-gray-400" />
@@ -348,7 +348,7 @@ export default function JusurCalcApp() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
+
           {/* Input Panel */}
           <motion.div 
             initial={{ opacity: 0, x: -20 }} 
@@ -377,7 +377,7 @@ export default function JusurCalcApp() {
                 </Select>
               </CardContent>
             </Card>
-            
+
             {/* Input Form Card */}
             <Card className="glassmorphism bg-white/80 dark:bg-ios-dark-elevated/80 rounded-ios-xl border border-white/20 dark:border-white/10 shadow-ios">
               <CardHeader>
@@ -399,11 +399,12 @@ export default function JusurCalcApp() {
                       className="ios-input pl-12" 
                       value={inputs.buyPrice} 
                       onChange={onChangeNum("buyPrice")}
+                      placeholder="5,600,000"
                       data-testid="input-buyprice"
                     />
                   </div>
                 </div>
-                
+
                 <div>
                   <Label className="flex items-center text-gray-700 dark:text-gray-300 mb-2">
                     Expected Sale Price
@@ -416,11 +417,12 @@ export default function JusurCalcApp() {
                       className="ios-input pl-12" 
                       value={inputs.sellPrice} 
                       onChange={onChangeNum("sellPrice")}
+                      placeholder="7,200,000"
                       data-testid="input-sellprice"
                     />
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-gray-700 dark:text-gray-300 mb-2">Buy Commission %</Label>
@@ -431,12 +433,13 @@ export default function JusurCalcApp() {
                         className="ios-input pr-8" 
                         value={inputs.buyCommPct} 
                         onChange={onChangeNum("buyCommPct")}
+                        placeholder="0.0"
                         data-testid="input-buycomm"
                       />
                       <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">%</span>
                     </div>
                   </div>
-                  
+
                   <div>
                     <Label className="text-gray-700 dark:text-gray-300 mb-2">Sell Commission %</Label>
                     <div className="relative">
@@ -446,13 +449,14 @@ export default function JusurCalcApp() {
                         className="ios-input pr-8" 
                         value={inputs.sellCommPct} 
                         onChange={onChangeNum("sellCommPct")}
+                        placeholder="0.0"
                         data-testid="input-sellcomm"
                       />
                       <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">%</span>
                     </div>
                   </div>
                 </div>
-                
+
                 <div>
                   <Label className="text-gray-700 dark:text-gray-300 mb-2">
                     Holding Period
@@ -463,11 +467,12 @@ export default function JusurCalcApp() {
                     className="ios-input" 
                     value={inputs.holdingMonths} 
                     onChange={onChangeNum("holdingMonths")}
+                    placeholder="8"
                     data-testid="input-holdingperiod"
                   />
                   <p className="text-xs text-ios-gray dark:text-gray-400 mt-1">Used for ROI calculations and model thresholds</p>
                 </div>
-                
+
                 {model === "FLAT" && (
                   <div>
                     <Label className="text-gray-700 dark:text-gray-300 mb-2">Flat % for Jusur</Label>
@@ -477,11 +482,12 @@ export default function JusurCalcApp() {
                       className="ios-input" 
                       value={inputs.flatPct} 
                       onChange={onChangeNum("flatPct")}
+                      placeholder="30"
                       data-testid="input-flatpct"
                     />
                   </div>
                 )}
-                
+
                 {model === "ROI" && (
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -492,6 +498,7 @@ export default function JusurCalcApp() {
                           className="ios-input" 
                           value={inputs.roiTier1} 
                           onChange={onChangeNum("roiTier1")}
+                          placeholder="10"
                           data-testid="input-roitier1"
                         />
                       </div>
@@ -502,6 +509,7 @@ export default function JusurCalcApp() {
                           className="ios-input" 
                           value={inputs.roiTier2} 
                           onChange={onChangeNum("roiTier2")}
+                          placeholder="20"
                           data-testid="input-roitier2"
                         />
                       </div>
@@ -514,6 +522,7 @@ export default function JusurCalcApp() {
                           className="ios-input" 
                           value={inputs.roiPct1} 
                           onChange={onChangeNum("roiPct1")}
+                          placeholder="20"
                           data-testid="input-roipct1"
                         />
                       </div>
@@ -524,6 +533,7 @@ export default function JusurCalcApp() {
                           className="ios-input" 
                           value={inputs.roiPct2} 
                           onChange={onChangeNum("roiPct2")}
+                          placeholder="30"
                           data-testid="input-roipct2"
                         />
                       </div>
@@ -534,6 +544,7 @@ export default function JusurCalcApp() {
                           className="ios-input" 
                           value={inputs.roiPct3} 
                           onChange={onChangeNum("roiPct3")}
+                          placeholder="40"
                           data-testid="input-roipct3"
                         />
                       </div>
@@ -593,7 +604,7 @@ export default function JusurCalcApp() {
                       </PieChart>
                     </ResponsiveContainer>
                   )}
-                  
+
                   {chartType === "BAR" && (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={barData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
@@ -624,7 +635,7 @@ export default function JusurCalcApp() {
                       </BarChart>
                     </ResponsiveContainer>
                   )}
-                  
+
                   {chartType === "LINE" && (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={timelineData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
@@ -651,7 +662,7 @@ export default function JusurCalcApp() {
                       </LineChart>
                     </ResponsiveContainer>
                   )}
-                  
+
                   {chartType === "AREA" && (
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={timelineData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
