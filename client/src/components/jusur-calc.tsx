@@ -1241,7 +1241,6 @@ export default function JusurCalcApp() {
                         <Legend />
                       </PieChart>
                     </ResponsiveContainer>
-                  </div>
                   )}
 
                   {chartType === "BAR" && (
@@ -1272,7 +1271,7 @@ export default function JusurCalcApp() {
                           ))}
                         </Bar>
                       </BarChart>
-                    </ResponsiveContainer>Container>
+                    </ResponsiveContainer>
                   )}
 
                   {chartType === "LINE" && (
@@ -1363,7 +1362,7 @@ export default function JusurCalcApp() {
                   <DetailItem label="Other Expenses" value={nf(results.otherExpenses)} />
                   <DetailItem label="Jusur Profit Cut" value={nf(results.jusurProfitCut)} />
                   <DetailItem label="Investor Profit" value={nf(results.investorProfit)} />
-                  <DetailItem label="Jusur Total Revenue" value={nf(results.jusurTotalRevenue)}venue)} />
+                  <DetailItem label="Jusur Total Revenue" value={nf(results.jusurTotalRevenue)} />
                   <DetailItem label="Partner Share" value={nf(results.partnerShare)} />
                 </div>
               </CardContent>
@@ -1676,7 +1675,7 @@ export default function JusurCalcApp() {
           </Card>
         </motion.div>
         )}
-      </motion.div>ain>
+      </main>
     </div>
   );
 }
