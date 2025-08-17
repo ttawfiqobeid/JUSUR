@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PieChart, Pie, Cell, Tooltip as ReTooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, AreaChart, Area } from "recharts";
 import { Download, RefreshCcw, Calculator, TrendingUp, Moon, Sun, Settings, HelpCircle, Share } from "lucide-react";
-import jusurLogo from "@assets/jusur-logo-new.png";
+import jusurLogo from "@/assets/jusur-logo-new.png";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import KPICard from "@/components/kpi-card";
