@@ -49,6 +49,9 @@ const defaultInputs = {
   agentCommAmount: 0,
   useAgentPct: true,
   targetROI: 10,
+  retTaxPct: 2.5,
+  useRetTax: false,
+  otherExpenses: 0,
 };
 
 function clamp(v: number, min: number, max: number): number { 
@@ -83,6 +86,8 @@ interface ComputeResults {
   costToBuy: number;
   sellCommAmount: number;
   agentCommAmount: number;
+  retTaxAmount: number;
+  otherExpenses: number;
   netSaleRevenue: number;
   totalProfit: number;
   jusurPct: number;
@@ -106,7 +111,13 @@ function computeResults(model: string, p: typeof defaultInputs): ComputeResults 
     ? (p.sellPrice || 0) * (p.agentCommPct || 0) / 100
     : (p.agentCommAmount || 0);
   
-  const netSaleRevenue = (p.sellPrice || 0) - sellCommAmount - agentCommAmount;
+  // Calculate RET Tax (Real Estate Transactions Tax)
+  const retTaxAmount = p.useRetTax ? (p.sellPrice || 0) * (p.retTaxPct || 0) / 100 : 0;
+  
+  // Calculate other expenses
+  const otherExpenses = p.otherExpenses || 0;
+  
+  const netSaleRevenue = (p.sellPrice || 0) - sellCommAmount - agentCommAmount - retTaxAmount - otherExpenses;
   const totalProfit = netSaleRevenue - costToBuy;
 
   // Jusur % per selected model
@@ -154,6 +165,8 @@ function computeResults(model: string, p: typeof defaultInputs): ComputeResults 
     costToBuy,
     sellCommAmount,
     agentCommAmount,
+    retTaxAmount,
+    otherExpenses,
     netSaleRevenue,
     totalProfit,
     jusurPct,
@@ -189,6 +202,14 @@ interface SavedDeal {
   results: ComputeResults;
 }
 
+interface SavedProfile {
+  id: string;
+  name: string;
+  inputs: typeof defaultInputs;
+  model: string;
+  createdAt: string;
+}
+
 export default function JusurCalcApp() {
   const [dark, setDark] = useDarkMode();
   const [model, setModel] = useState("SLIDING");
@@ -199,6 +220,9 @@ export default function JusurCalcApp() {
   const [savedDeals, setSavedDeals] = useState<SavedDeal[]>([]);
   const [sortField, setSortField] = useState<keyof SavedDeal>("date");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [profileName, setProfileName] = useState("");
+  const [savedProfiles, setSavedProfiles] = useState<SavedProfile[]>([]);
+  const [selectedProfile, setSelectedProfile] = useState<string>("");
   const { toast } = useToast();
 
   // Load saved deals from localStorage on mount
@@ -213,10 +237,27 @@ export default function JusurCalcApp() {
     }
   }, []);
 
+  // Load saved profiles from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("jusur_saved_profiles");
+    if (saved) {
+      try {
+        setSavedProfiles(JSON.parse(saved));
+      } catch (error) {
+        console.error("Error loading saved profiles:", error);
+      }
+    }
+  }, []);
+
   // Save deals to localStorage whenever savedDeals changes
   useEffect(() => {
     localStorage.setItem("jusur_saved_deals", JSON.stringify(savedDeals));
   }, [savedDeals]);
+
+  // Save profiles to localStorage whenever savedProfiles changes
+  useEffect(() => {
+    localStorage.setItem("jusur_saved_profiles", JSON.stringify(savedProfiles));
+  }, [savedProfiles]);
 
   const onChangeNum = (key: keyof typeof defaultInputs) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value;
@@ -255,13 +296,15 @@ export default function JusurCalcApp() {
     // Calculate required net sale revenue
     const requiredNetRevenue = costToBuy + targetProfit;
     
-    // Account for sell commission and agent commission
+    // Account for sell commission, agent commission, RET tax, and other expenses
     const sellCommRate = (inputs.sellCommPct || 0) / 100;
     const agentCommRate = inputs.useAgentPct ? (inputs.agentCommPct || 0) / 100 : 0;
+    const retTaxRate = inputs.useRetTax ? (inputs.retTaxPct || 0) / 100 : 0;
     const fixedAgentComm = inputs.useAgentPct ? 0 : (inputs.agentCommAmount || 0);
+    const otherExpenses = inputs.otherExpenses || 0;
     
-    // Solve for sell price: sellPrice * (1 - sellCommRate - agentCommRate) - fixedAgentComm = requiredNetRevenue
-    const breakEven = (requiredNetRevenue + fixedAgentComm) / (1 - sellCommRate - agentCommRate);
+    // Solve for sell price: sellPrice * (1 - sellCommRate - agentCommRate - retTaxRate) - fixedAgentComm - otherExpenses = requiredNetRevenue
+    const breakEven = (requiredNetRevenue + fixedAgentComm + otherExpenses) / (1 - sellCommRate - agentCommRate - retTaxRate);
     
     return Math.max(0, breakEven);
   }, [inputs]);
@@ -284,10 +327,12 @@ export default function JusurCalcApp() {
       const costToBuy = (inputs.buyPrice || 0) + buyCommAmount;
       const sellCommRate = (inputs.sellCommPct || 0) / 100;
       const agentCommRate = inputs.useAgentPct ? (inputs.agentCommPct || 0) / 100 : 0;
+      const retTaxRate = inputs.useRetTax ? (inputs.retTaxPct || 0) / 100 : 0;
       const fixedAgentComm = inputs.useAgentPct ? 0 : (inputs.agentCommAmount || 0);
+      const otherExpenses = inputs.otherExpenses || 0;
       
       const requiredNetRevenue = costToBuy + adjustedProfit;
-      const adjustedSellPrice = (requiredNetRevenue + fixedAgentComm) / (1 - sellCommRate - agentCommRate);
+      const adjustedSellPrice = (requiredNetRevenue + fixedAgentComm + otherExpenses) / (1 - sellCommRate - agentCommRate - retTaxRate);
       
       // Calculate results for each model at this profit level
       const testInputs = { ...inputs, sellPrice: adjustedSellPrice };
@@ -325,6 +370,8 @@ export default function JusurCalcApp() {
       ["Sell Price", results.sellPrice.toString()],
       ["Sell Commission (%)", results.sellCommPct.toString()],
       ["Sell Commission Amount", results.sellCommAmount.toString()],
+      ["RET Tax Amount", results.retTaxAmount.toString()],
+      ["Other Expenses", results.otherExpenses.toString()],
       ["Net Sale Revenue", results.netSaleRevenue.toString()],
       ["Total Profit", results.totalProfit.toString()],
       ["Jusur %", results.jusurPct.toString()],
@@ -416,6 +463,56 @@ export default function JusurCalcApp() {
     toast({
       title: "Deal Deleted",
       description: "Deal has been removed from history.",
+    });
+  };
+
+  const saveProfile = () => {
+    if (!profileName.trim()) {
+      toast({
+        title: "Profile Name Required",
+        description: "Please enter a name for this profile.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newProfile: SavedProfile = {
+      id: Date.now().toString(),
+      name: profileName.trim(),
+      inputs: { ...inputs },
+      model,
+      createdAt: new Date().toISOString(),
+    };
+
+    setSavedProfiles(prev => [newProfile, ...prev]);
+    setProfileName("");
+    toast({
+      title: "Profile Saved",
+      description: `"${newProfile.name}" profile has been saved.`,
+    });
+  };
+
+  const loadProfile = (profileId: string) => {
+    const profile = savedProfiles.find(p => p.id === profileId);
+    if (profile) {
+      setInputs(profile.inputs);
+      setModel(profile.model);
+      setSelectedProfile(profileId);
+      toast({
+        title: "Profile Loaded",
+        description: `"${profile.name}" profile has been loaded.`,
+      });
+    }
+  };
+
+  const deleteProfile = (id: string) => {
+    setSavedProfiles(prev => prev.filter(profile => profile.id !== id));
+    if (selectedProfile === id) {
+      setSelectedProfile("");
+    }
+    toast({
+      title: "Profile Deleted",
+      description: "Profile has been removed.",
     });
   };
 
@@ -780,6 +877,53 @@ export default function JusurCalcApp() {
                   )}
                 </div>
 
+                {/* RET Tax Section */}
+                <div className="space-y-4 p-4 rounded-lg bg-orange-50 dark:bg-orange-900/20">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-gray-700 dark:text-gray-300">Real Estate Transactions Tax (Optional)</Label>
+                    <Switch 
+                      checked={inputs.useRetTax} 
+                      onCheckedChange={(checked) => setInputs(s => ({ ...s, useRetTax: checked }))}
+                    />
+                  </div>
+                  
+                  {inputs.useRetTax && (
+                    <div>
+                      <Label className="text-gray-700 dark:text-gray-300 mb-2">RET Tax %</Label>
+                      <div className="relative">
+                        <Input 
+                          type="number" 
+                          step="0.1" 
+                          className="ios-input pr-8" 
+                          value={inputs.retTaxPct || ''} 
+                          onChange={onChangeNum("retTaxPct")}
+                          placeholder="2.5"
+                          data-testid="input-rettaxpct"
+                        />
+                        <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">%</span>
+                      </div>
+                      <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">Default 2.5% - paid by investor on sale</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Other Expenses Section */}
+                <div className="space-y-4 p-4 rounded-lg bg-purple-50 dark:bg-purple-900/20">
+                  <Label className="text-gray-700 dark:text-gray-300">Other Expenses (Optional)</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">EGP</span>
+                    <Input 
+                      type="text" 
+                      className="ios-input pl-12" 
+                      value={inputs.otherExpenses ? formatNumberInput(inputs.otherExpenses.toString()) : ''} 
+                      onChange={onChangeNum("otherExpenses")}
+                      placeholder="0"
+                      data-testid="input-otherexpenses"
+                    />
+                  </div>
+                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Legal fees, maintenance, inspection costs, etc.</p>
+                </div>
+
                 {model === "FLAT" && (
                   <div>
                     <Label className="text-gray-700 dark:text-gray-300 mb-2">Flat % for Jusur</Label>
@@ -858,6 +1002,79 @@ export default function JusurCalcApp() {
                     </div>
                   </div>
                 )}
+
+                {/* Save/Load Profiles Section */}
+                <div className="space-y-4 p-4 rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20">
+                  <Label className="text-gray-700 dark:text-gray-300">Input Profiles</Label>
+                  
+                  {/* Load Profile Dropdown */}
+                  {savedProfiles.length > 0 && (
+                    <div>
+                      <Label className="text-gray-700 dark:text-gray-300 mb-2 text-sm">Load Saved Profile</Label>
+                      <Select value={selectedProfile} onValueChange={loadProfile}>
+                        <SelectTrigger className="ios-input">
+                          <SelectValue placeholder="Select a profile..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {savedProfiles.map((profile) => (
+                            <SelectItem key={profile.id} value={profile.id}>
+                              <div className="flex items-center justify-between w-full">
+                                <span>{profile.name}</span>
+                                <span className="text-xs text-gray-500 ml-2">({profile.model})</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  
+                  {/* Save Profile */}
+                  <div className="flex space-x-2">
+                    <Input 
+                      type="text" 
+                      className="ios-input flex-1" 
+                      value={profileName} 
+                      onChange={(e) => setProfileName(e.target.value)}
+                      placeholder="Enter profile name..."
+                      data-testid="input-profilename"
+                    />
+                    <Button 
+                      onClick={saveProfile}
+                      className="ios-button bg-green-600 hover:bg-green-700 text-white"
+                      disabled={!profileName.trim()}
+                    >
+                      Save Profile
+                    </Button>
+                  </div>
+                  
+                  {/* Profile Management */}
+                  {savedProfiles.length > 0 && (
+                    <div className="mt-4">
+                      <Label className="text-gray-700 dark:text-gray-300 mb-2 text-sm">Manage Profiles</Label>
+                      <div className="space-y-2 max-h-32 overflow-y-auto">
+                        {savedProfiles.map((profile) => (
+                          <div key={profile.id} className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border">
+                            <div className="flex-1">
+                              <span className="text-sm font-medium">{profile.name}</span>
+                              <span className="text-xs text-gray-500 ml-2">({profile.model})</span>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => deleteProfile(profile.id)}
+                              className="text-xs text-red-600 hover:text-red-700 ml-2"
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <p className="text-xs text-green-600 dark:text-green-400">Save input configurations for quick reuse across different properties</p>
+                </div>
 
                 {/* Save Deal Section */}
                 <div className="space-y-4 p-4 rounded-lg bg-gradient-to-r from-ios-blue/10 to-ios-light-blue/10 border border-ios-blue/20">
@@ -1050,6 +1267,8 @@ export default function JusurCalcApp() {
                   <DetailItem label="Buy Commission" value={nf(results.buyCommAmount)} />
                   <DetailItem label="Sell Commission" value={nf(results.sellCommAmount)} />
                   <DetailItem label="Agent Commission" value={nf(results.agentCommAmount)} />
+                  <DetailItem label="RET Tax" value={nf(results.retTaxAmount)} />
+                  <DetailItem label="Other Expenses" value={nf(results.otherExpenses)} />
                   <DetailItem label="Jusur Profit Cut" value={nf(results.jusurProfitCut)} />
                   <DetailItem label="Investor Profit" value={nf(results.investorProfit)} />
                   <DetailItem label="Jusur Total Revenue" value={nf(results.jusurTotalRevenue)} />
