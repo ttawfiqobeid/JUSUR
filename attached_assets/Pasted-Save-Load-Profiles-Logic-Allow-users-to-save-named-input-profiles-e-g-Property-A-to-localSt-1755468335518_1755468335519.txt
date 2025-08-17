@@ -1,0 +1,26 @@
+Save/Load Profiles:
+
+Logic: Allow users to save named input profiles (e.g., “Property A”) to localStorage. Display a dropdown to load profiles, updating input fields. Include a “Save Profile” button next to the profile name input.
+Why Optimal: Improves user experience by enabling quick reuse of common deal setups, ideal for teams evaluating multiple properties.
+
+
+Real Estate Transactions Tax (RET Tax):
+
+Logic: Add an input for RET Tax percentage (default 2.5%, common in Egypt for real estate). Apply it to the sell price as an additional cost, reducing net sale revenue. Include in calculations and display in the breakdown.
+Why Optimal: Reflects real-world costs, making the app more accurate. User-configurable percentage accommodates varying tax rates.
+
+
+Other Expenses:
+
+Logic: Add an input for a flat “Other Expenses” amount (e.g., legal fees, maintenance) to be subtracted from net sale revenue. Display in the breakdown and include in CSV export.
+Why Optimal: Captures miscellaneous costs without overcomplicating the app, maintaining flexibility for users.
+
+
+
+Implementation Strategy
+
+Replace Analytics: The Vercel/Netlify analytics section (e.g., bandwidth, page views) is replaced by tabs for Scenario Comparison, Sensitivity Analysis, and History, which are more relevant for financial decision-making.
+Dynamic Profit Relationship: The Sensitivity Analysis tab visualizes how Jusur’s share increases with profit size (e.g., 25% at ≤500K, 45% at >1M in Progressive model), directly addressing your requirement.
+Client-Side Focus: Use localStorage for history and profiles to keep the app lightweight and compatible with Vercel’s free tier. Firebase can be added for team-shared data later.
+UI/UX: Leverage existing Tailwind CSS, Shadcn UI, and Framer Motion for a polished, responsive interface. Add touch-friendly inputs and scrollable tables for mobile use.
+CSV Export: Include RET Tax, Other Expenses, and break-even sell price in the export for comprehensive reporting. and fix the table exported make it more comprehendebal and add commas and fix the formating 
