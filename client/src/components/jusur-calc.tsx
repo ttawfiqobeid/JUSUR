@@ -1,3 +1,4 @@
+
 import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ const formatter = new Intl.NumberFormat("en-EG", {
   notation: "compact",
   compactDisplay: "short"
 });
+
 const nf = (n: number) => {
   if (!isFinite(n)) return "—";
   if (Math.abs(n) >= 1000000) {
@@ -106,29 +108,21 @@ function computeResults(model: string, p: typeof defaultInputs): ComputeResults 
   const costToBuy = (p.buyPrice || 0) + buyCommAmount;
   const sellCommAmount = (p.sellPrice || 0) * (p.sellCommPct || 0) / 100;
 
-  // Calculate agent commission
   const agentCommAmount = p.useAgentPct
     ? (p.sellPrice || 0) * (p.agentCommPct || 0) / 100
     : (p.agentCommAmount || 0);
 
-  // Calculate RET Tax (Real Estate Transactions Tax)
   const retTaxAmount = p.useRetTax ? (p.sellPrice || 0) * (p.retTaxPct || 0) / 100 : 0;
-
-  // Calculate other expenses
   const otherExpenses = p.otherExpenses || 0;
-
   const netSaleRevenue = (p.sellPrice || 0) - sellCommAmount - agentCommAmount - retTaxAmount - otherExpenses;
   const totalProfit = netSaleRevenue - costToBuy;
 
-  // Jusur % per selected model
   let jusurPct = 0;
   if (totalProfit <= 0) {
-    jusurPct = 0; // no profit, no cut
+    jusurPct = 0;
   } else if (model === "SLIDING") {
-    // Sliding: 20% + (profit/2,000,000)*25%, capped 45%
     jusurPct = clamp(0.20 + (totalProfit / 2000000) * 0.25, 0.20, 0.45);
   } else if (model === "PROGRESSIVE") {
-    // Progressive tiers, tax-style on profit chunks: 25% up to 500k, 35% next 500k, 45% remainder
     const tier1 = Math.min(totalProfit, 500000);
     const tier2 = Math.min(Math.max(totalProfit - 500000, 0), 500000);
     const tier3 = Math.max(totalProfit - 1000000, 0);
@@ -137,7 +131,6 @@ function computeResults(model: string, p: typeof defaultInputs): ComputeResults 
   } else if (model === "FLAT") {
     jusurPct = clamp((p.flatPct || 0) / 100, 0, 0.9);
   } else if (model === "ROI") {
-    // ROI tiers based on investor ROI against costToBuy
     const investorROI = costToBuy > 0 ? (totalProfit / costToBuy) * 100 : 0;
     if (investorROI <= (p.roiTier1 || 0)) jusurPct = (p.roiPct1 || 0) / 100;
     else if (investorROI <= (p.roiTier2 || 0)) jusurPct = (p.roiPct2 || 0) / 100;
@@ -154,13 +147,10 @@ function computeResults(model: string, p: typeof defaultInputs): ComputeResults 
   const investorProfitPercent = totalProfit > 0 ? (investorProfit / totalProfit) * 100 : 0;
 
   return {
-    // echo inputs for CSV
     buyPrice: p.buyPrice,
     sellPrice: p.sellPrice,
     buyCommPct: p.buyCommPct,
     sellCommPct: p.sellCommPct,
-
-    // computed
     buyCommAmount,
     costToBuy,
     sellCommAmount,
@@ -181,11 +171,8 @@ function computeResults(model: string, p: typeof defaultInputs): ComputeResults 
   };
 }
 
-// Number formatting helper
 const formatNumberInput = (value: string): string => {
-  // Remove all non-numeric characters
   const numericValue = value.replace(/[^\d]/g, '');
-  // Add commas for thousands separator
   return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 };
 
@@ -225,7 +212,6 @@ export default function JusurCalcApp() {
   const [selectedProfile, setSelectedProfile] = useState<string>("");
   const { toast } = useToast();
 
-  // Load saved deals from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem("jusur_saved_deals");
     if (saved) {
@@ -237,7 +223,6 @@ export default function JusurCalcApp() {
     }
   }, []);
 
-  // Load saved profiles from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem("jusur_saved_profiles");
     if (saved) {
@@ -249,12 +234,10 @@ export default function JusurCalcApp() {
     }
   }, []);
 
-  // Save deals to localStorage whenever savedDeals changes
   useEffect(() => {
     localStorage.setItem("jusur_saved_deals", JSON.stringify(savedDeals));
   }, [savedDeals]);
 
-  // Save profiles to localStorage whenever savedProfiles changes
   useEffect(() => {
     localStorage.setItem("jusur_saved_profiles", JSON.stringify(savedProfiles));
   }, [savedProfiles]);
@@ -262,7 +245,6 @@ export default function JusurCalcApp() {
   const onChangeNum = (key: keyof typeof defaultInputs) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value;
     if (key === 'buyPrice' || key === 'sellPrice' || key === 'agentCommAmount') {
-      // For price fields, format with commas
       const formattedValue = formatNumberInput(rawValue);
       e.target.value = formattedValue;
       setInputs((s) => ({ ...s, [key]: parseNumberInput(formattedValue) }));
@@ -277,7 +259,6 @@ export default function JusurCalcApp() {
 
   const results = useMemo(() => computeResults(model, inputs), [model, inputs]);
 
-  // Scenario comparison - compute results for all models
   const scenarioResults = useMemo(() => {
     const models = ["SLIDING", "PROGRESSIVE", "FLAT", "ROI"];
     return models.map(modelType => ({
@@ -286,43 +267,28 @@ export default function JusurCalcApp() {
     }));
   }, [inputs]);
 
-  // Break-even analysis - calculate minimum sell price for target ROI
   const breakEvenPrice = useMemo(() => {
     const targetROI = inputs.targetROI / 100;
     const buyCommAmount = (inputs.buyPrice || 0) * (inputs.buyCommPct || 0) / 100;
     const costToBuy = (inputs.buyPrice || 0) + buyCommAmount;
     const targetProfit = costToBuy * targetROI;
-
-    // Calculate required net sale revenue
     const requiredNetRevenue = costToBuy + targetProfit;
-
-    // Account for sell commission, agent commission, RET tax, and other expenses
     const sellCommRate = (inputs.sellCommPct || 0) / 100;
     const agentCommRate = inputs.useAgentPct ? (inputs.agentCommPct || 0) / 100 : 0;
     const retTaxRate = inputs.useRetTax ? (inputs.retTaxPct || 0) / 100 : 0;
     const fixedAgentComm = inputs.useAgentPct ? 0 : (inputs.agentCommAmount || 0);
     const otherExpenses = inputs.otherExpenses || 0;
-
-    // Solve for sell price: sellPrice * (1 - sellCommRate - agentCommRate - retTaxRate) - fixedAgentComm - otherExpenses = requiredNetRevenue
     const breakEven = (requiredNetRevenue + fixedAgentComm + otherExpenses) / (1 - sellCommRate - agentCommRate - retTaxRate);
-
     return Math.max(0, breakEven);
   }, [inputs]);
 
-  // Sensitivity analysis data
   const sensitivityData = useMemo(() => {
     if (results.totalProfit <= 0) return [];
-
     const baseProfit = results.totalProfit;
-    const baseSellPrice = inputs.sellPrice || 0;
     const variations = [];
-
-    // Generate data points from 50% to 150% of current profit
     for (let i = 50; i <= 150; i += 10) {
       const profitMultiplier = i / 100;
       const adjustedProfit = baseProfit * profitMultiplier;
-
-      // Calculate corresponding sell price
       const buyCommAmount = (inputs.buyPrice || 0) * (inputs.buyCommPct || 0) / 100;
       const costToBuy = (inputs.buyPrice || 0) + buyCommAmount;
       const sellCommRate = (inputs.sellCommPct || 0) / 100;
@@ -330,17 +296,13 @@ export default function JusurCalcApp() {
       const retTaxRate = inputs.useRetTax ? (inputs.retTaxPct || 0) / 100 : 0;
       const fixedAgentComm = inputs.useAgentPct ? 0 : (inputs.agentCommAmount || 0);
       const otherExpenses = inputs.otherExpenses || 0;
-
       const requiredNetRevenue = costToBuy + adjustedProfit;
       const adjustedSellPrice = (requiredNetRevenue + fixedAgentComm + otherExpenses) / (1 - sellCommRate - agentCommRate - retTaxRate);
-
-      // Calculate results for each model at this profit level
       const testInputs = { ...inputs, sellPrice: adjustedSellPrice };
       const slidingResults = computeResults("SLIDING", testInputs);
       const progressiveResults = computeResults("PROGRESSIVE", testInputs);
       const flatResults = computeResults("FLAT", testInputs);
       const roiResults = computeResults("ROI", testInputs);
-
       variations.push({
         profitMultiplier: i,
         sellPrice: adjustedSellPrice,
@@ -355,7 +317,6 @@ export default function JusurCalcApp() {
         roiInvestor: roiResults.investorProfit,
       });
     }
-
     return variations;
   }, [inputs, results]);
 
@@ -363,38 +324,28 @@ export default function JusurCalcApp() {
     const formatCurrency = (amount: number) => {
       return `"EGP ${amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}"`;
     };
-
     const formatPercentage = (pct: number) => {
       return `"${pct.toFixed(2)}%"`;
     };
-
-    const dealName = dealName || `${model}_Deal_${new Date().toISOString().split('T')[0]}`;
-
+    const currentDealName = dealName || `${model}_Deal_${new Date().toISOString().split('T')[0]}`;
     const rows = [
-      // Header Information
       ["JUSUR INVESTMENTS - CALCULATION REPORT"],
       [""],
-      ["Deal Name", `"${dealName}"`],
+      ["Deal Name", `"${currentDealName}"`],
       ["Calculation Model", `"${model}"`],
       ["Export Date", `"${new Date().toLocaleString()}"`],
       [""],
-
-      // INPUT PARAMETERS
       ["=== INPUT PARAMETERS ==="],
       ["Purchase Price", formatCurrency(results.buyPrice)],
       ["Expected Sale Price", formatCurrency(results.sellPrice)],
       ["Holding Period (Months)", inputs.holdingMonths.toString()],
       [""],
-
-      // COMMISSION & FEES
       ["=== COMMISSIONS & FEES ==="],
       ["Buy Commission Rate", formatPercentage(results.buyCommPct)],
       ["Buy Commission Amount", formatCurrency(results.buyCommAmount)],
       ["Sell Commission Rate", formatPercentage(results.sellCommPct)],
       ["Sell Commission Amount", formatCurrency(results.sellCommAmount)],
       [""],
-
-      // OPTIONAL COSTS
       ["=== OPTIONAL COSTS ==="],
       ["Agent Commission", inputs.useAgentPct ? formatPercentage(inputs.agentCommPct) : formatCurrency(inputs.agentCommAmount)],
       ["Agent Commission Amount", formatCurrency(results.agentCommAmount)],
@@ -402,8 +353,6 @@ export default function JusurCalcApp() {
       ["RET Tax Amount", formatCurrency(results.retTaxAmount)],
       ["Other Expenses", formatCurrency(results.otherExpenses)],
       [""],
-
-      // CALCULATION RESULTS
       ["=== CALCULATION RESULTS ==="],
       ["Total Cost to Buy", formatCurrency(results.costToBuy)],
       ["Gross Sale Revenue", formatCurrency(results.sellPrice)],
@@ -411,41 +360,30 @@ export default function JusurCalcApp() {
       ["Net Sale Revenue", formatCurrency(results.netSaleRevenue)],
       ["Total Profit", formatCurrency(results.totalProfit)],
       [""],
-
-      // PROFIT DISTRIBUTION
       ["=== PROFIT DISTRIBUTION ==="],
       ["Jusur Profit Share Rate", formatPercentage(results.jusurPct * 100)],
       ["Jusur Profit Cut", formatCurrency(results.jusurProfitCut)],
       ["Investor Profit", formatCurrency(results.investorProfit)],
       ["Investor Profit Percentage", formatPercentage(results.investorProfitPercent)],
       [""],
-
-      // JUSUR REVENUE BREAKDOWN
       ["=== JUSUR REVENUE BREAKDOWN ==="],
       ["Total Jusur Revenue", formatCurrency(results.jusurTotalRevenue)],
       ["Your Share (50%)", formatCurrency(results.yourShare)],
       ["Partner Share (50%)", formatCurrency(results.partnerShare)],
       [""],
-
-      // INVESTOR RETURNS
       ["=== INVESTOR RETURNS ==="],
       ["Initial Investment", formatCurrency(results.costToBuy)],
       ["Final Return", formatCurrency(results.investorFinalReturn)],
       ["Investor ROI", formatPercentage(results.investorROI)],
       [""],
-
-      // BREAK-EVEN ANALYSIS
       ["=== BREAK-EVEN ANALYSIS ==="],
       ["Target ROI", formatPercentage(inputs.targetROI)],
       ["Minimum Sell Price for Target ROI", formatCurrency(breakEvenPrice)],
       ["Current vs Break-even", formatCurrency(results.sellPrice - breakEvenPrice)],
       [""],
-
-      // MODEL-SPECIFIC PARAMETERS
       ["=== MODEL-SPECIFIC PARAMETERS ==="],
     ];
 
-    // Add model-specific parameters
     if (model === "FLAT") {
       rows.push(["Flat Jusur Percentage", formatPercentage(inputs.flatPct)]);
     } else if (model === "ROI") {
@@ -478,7 +416,7 @@ export default function JusurCalcApp() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `JusurCalc_${model}_${dealName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `JusurCalc_${model}_${currentDealName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
 
@@ -689,7 +627,6 @@ export default function JusurCalcApp() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-ios-light-gray via-white to-ios-light-gray dark:from-ios-dark dark:via-ios-dark-elevated dark:to-ios-dark">
-      {/* Header */}
       <motion.header
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -697,7 +634,6 @@ export default function JusurCalcApp() {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-20">
-            {/* Logo and Title */}
             <div className="flex items-center space-x-4">
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white dark:bg-white rounded-xl flex items-center justify-center shadow-ios p-1">
                 <img
@@ -712,7 +648,6 @@ export default function JusurCalcApp() {
               </div>
             </div>
 
-            {/* Actions */}
             <div className="flex items-center space-x-2 sm:space-x-3">
               <Button
                 variant="outline"
@@ -744,7 +679,6 @@ export default function JusurCalcApp() {
                 <span className="hidden sm:inline">Reset</span>
               </Button>
 
-              {/* Dark Mode Toggle */}
               <div className="flex items-center space-x-2 px-2">
                 <Sun className="w-4 h-4 text-ios-gray dark:text-gray-400" />
                 <Switch checked={dark} onCheckedChange={setDark} data-testid="switch-darkmode" />
@@ -755,9 +689,7 @@ export default function JusurCalcApp() {
         </div>
       </motion.header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {/* Tab Navigation */}
         <div className="mb-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="glassmorphism bg-white/80 dark:bg-ios-dark-elevated/80 rounded-ios-xl border border-white/20 dark:border-white/10 grid grid-cols-2 md:grid-cols-4 w-full">
@@ -771,14 +703,11 @@ export default function JusurCalcApp() {
 
         {activeTab === "calculator" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-            {/* Input Panel */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               className="lg:col-span-4 space-y-6"
             >
-              {/* Model Selection Card */}
               <Card className="glassmorphism bg-white/80 dark:bg-ios-dark-elevated/80 rounded-ios-xl border border-white/20 dark:border-white/10 shadow-ios">
                 <CardHeader>
                   <CardTitle className="text-gray-900 dark:text-white flex items-center">
@@ -801,7 +730,6 @@ export default function JusurCalcApp() {
                 </CardContent>
               </Card>
 
-              {/* Input Form Card */}
               <Card className="glassmorphism bg-white/80 dark:bg-ios-dark-elevated/80 rounded-ios-xl border border-white/20 dark:border-white/10 shadow-ios">
                 <CardHeader>
                   <CardTitle className="text-gray-900 dark:text-white flex items-center">
@@ -918,7 +846,6 @@ export default function JusurCalcApp() {
                     </div>
                   </div>
 
-                  {/* Agent Commission Section */}
                   <div className="space-y-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
                     <div className="flex items-center justify-between">
                       <Label className="text-gray-700 dark:text-gray-300">Outside Agent Commission (Optional)</Label>
@@ -968,7 +895,6 @@ export default function JusurCalcApp() {
                     )}
                   </div>
 
-                  {/* RET Tax Section */}
                   <div className="space-y-4 p-4 rounded-lg bg-orange-50 dark:bg-orange-900/20">
                     <div className="flex items-center justify-between">
                       <Label className="text-gray-700 dark:text-gray-300">Real Estate Transactions Tax (Optional)</Label>
@@ -998,7 +924,6 @@ export default function JusurCalcApp() {
                     )}
                   </div>
 
-                  {/* Other Expenses Section */}
                   <div className="space-y-4 p-4 rounded-lg bg-purple-50 dark:bg-purple-900/20">
                     <Label className="text-gray-700 dark:text-gray-300">Other Expenses (Optional)</Label>
                     <div className="relative">
@@ -1094,11 +1019,9 @@ export default function JusurCalcApp() {
                     </div>
                   )}
 
-                  {/* Save/Load Profiles Section */}
                   <div className="space-y-4 p-4 rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20">
                     <Label className="text-gray-700 dark:text-gray-300">Input Profiles</Label>
 
-                    {/* Load Profile Dropdown */}
                     {savedProfiles.length > 0 && (
                       <div>
                         <Label className="text-gray-700 dark:text-gray-300 mb-2 text-sm">Load Saved Profile</Label>
@@ -1120,7 +1043,6 @@ export default function JusurCalcApp() {
                       </div>
                     )}
 
-                    {/* Save Profile */}
                     <div className="flex space-x-2">
                       <Input
                         type="text"
@@ -1139,7 +1061,6 @@ export default function JusurCalcApp() {
                       </Button>
                     </div>
 
-                    {/* Profile Management */}
                     {savedProfiles.length > 0 && (
                       <div className="mt-4">
                         <Label className="text-gray-700 dark:text-gray-300 mb-2 text-sm">Manage Profiles</Label>
@@ -1167,7 +1088,6 @@ export default function JusurCalcApp() {
                     <p className="text-xs text-green-600 dark:text-green-400">Save input configurations for quick reuse across different properties</p>
                   </div>
 
-                  {/* Save Deal Section */}
                   <div className="space-y-4 p-4 rounded-lg bg-gradient-to-r from-ios-blue/10 to-ios-light-blue/10 border border-ios-blue/20">
                     <Label className="text-gray-700 dark:text-gray-300">Save This Deal</Label>
                     <div className="flex space-x-2">
@@ -1193,20 +1113,17 @@ export default function JusurCalcApp() {
               </Card>
             </motion.div>
 
-            {/* Results Panel */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               className="lg:col-span-8 space-y-6"
             >
-              {/* KPI Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {kpiData.map((kpi, index) => (
                   <KPICard key={index} {...kpi} />
                 ))}
               </div>
 
-              {/* Chart Section */}
               <Card className="glassmorphism bg-white/80 dark:bg-ios-dark-elevated/80 rounded-ios-xl border border-white/20 dark:border-white/10 shadow-ios">
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="text-gray-900 dark:text-white">Analytics</CardTitle>
@@ -1345,7 +1262,6 @@ export default function JusurCalcApp() {
                 </CardContent>
               </Card>
 
-              {/* Detailed Results */}
               <Card className="glassmorphism bg-white/80 dark:bg-ios-dark-elevated/80 rounded-ios-xl border border-white/20 dark:border-white/10 shadow-ios">
                 <CardHeader>
                   <CardTitle className="text-gray-900 dark:text-white">Detailed Breakdown</CardTitle>
@@ -1453,7 +1369,6 @@ export default function JusurCalcApp() {
               <CardContent>
                 {sensitivityData.length > 0 ? (
                   <div className="space-y-6">
-                    {/* Jusur Profit Sensitivity */}
                     <div>
                       <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Jusur Profit by Model</h3>
                       <div className="h-80 w-full bg-white dark:bg-gray-900 rounded-lg p-2">
@@ -1491,7 +1406,6 @@ export default function JusurCalcApp() {
                       </div>
                     </div>
 
-                    {/* Investor Profit Sensitivity */}
                     <div>
                       <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Investor Profit by Model</h3>
                       <div className="h-80 w-full bg-white dark:bg-gray-900 rounded-lg p-2">
